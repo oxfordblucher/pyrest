@@ -6,29 +6,28 @@ dl_folder = Path(__file__).resolve().parent.parent / "data"
 dl_folder.mkdir(exist_ok=True)
 dl_file_path = dl_folder / "card_data.json"
 
+
 def get_link():
     try:
-        raw_api_data = requests.get('https://api.scryfall.com/bulk-data/oracle_cards')
+        raw_api_data = requests.get("https://api.scryfall.com/bulk-data/oracle_cards")
         raw_api_data.raise_for_status()
 
         parsed_data = json.loads(raw_api_data.text)
-        return parsed_data['download_uri']
+        return parsed_data["download_uri"]
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
         return None
-    
+
 
 def download():
     dl_link = get_link()
     if dl_link:
         try:
-            headers = {"Accept-Encoding": "gzip"}
-            res = requests.get(dl_link, headers=headers, stream=True)
+            res = requests.get(dl_link, stream=True)
             res.raise_for_status()
-            res.raw.decode_content=False
 
-            with open(dl_file_path, 'wb') as f:
+            with open(dl_file_path, "wb") as f:
                 for chunk in res.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
