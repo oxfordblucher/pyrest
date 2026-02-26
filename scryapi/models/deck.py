@@ -1,6 +1,6 @@
 from ..extensions import db
 
-class DeckModel(db.Model):
+class Deck(db.Model):
     __tablename__ = "decks"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
