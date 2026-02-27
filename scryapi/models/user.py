@@ -1,4 +1,4 @@
-from ..extensions import db
+from extensions import db
 
 class User(db.Model):
     __tablename__ = "users"
@@ -6,4 +6,4 @@ class User(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String, nullable=False)
-    decks = db.relationship("DeckModel", back_populates="user")
+    decks = db.relationship("Deck", back_populates="user")
