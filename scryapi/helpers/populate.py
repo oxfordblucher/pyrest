@@ -6,6 +6,14 @@ import json
 from models import Card
 
 
+def sync_fts():
+    db.session.execute(db.text("""
+        INSERT INTO cards_fts(cards_fts)
+        VALUES('rebuild')
+    """))
+    db.session.commit()
+
+
 def import_cards():
     json_path = Path(__file__).resolve().parent.parent / "data" / "card_data.json"
 
@@ -20,7 +28,7 @@ def import_cards():
         batch = data[i : i + BATCH_SIZE]
         rows = [
             {
-                "id": item.get("id"),
+                "uuid": item.get("id"),
                 "name": item.get("name"),
                 "mana_cost": item.get("mana_cost"),
                 "type_line": item.get("type_line"),
@@ -31,10 +39,11 @@ def import_cards():
             for item in batch
         ]
         query = insert(Card).values(rows)
-        query = query.on_conflict_do_nothing(index_elements=["id"])
+        query = query.on_conflict_do_nothing(index_elements=["uuid"])
         db.session.execute(query)
 
     db.session.commit()
+    sync_fts()
 
 
 if __name__ == "__main__":
