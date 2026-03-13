@@ -21,3 +21,6 @@ def schedule_job(app):
     if not DATA_PATH.exists() or (time.time() - DATA_PATH.stat().st_mtime) > MAX_AGE:
         with app.app_context():
             do_job()
+
+    # with app.app_context():
+    #     import_cards()

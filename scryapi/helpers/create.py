@@ -3,9 +3,9 @@ from extensions import db
 from models import *
 from .scheduler import schedule_job
 from routes import *
-from flask_migrate import Migrate
+# from flask_migrate import Migrate
 
-migrate = Migrate()
+# migrate = Migrate()
 
 def create_app():
     app = Flask(__name__)
@@ -16,7 +16,7 @@ def create_app():
     app.register_blueprint(usersbp)
 
     db.init_app(app)
-    migrate.init_app(app, db)
+    # migrate.init_app(app, db)
 
     schedule_job(app)
 
