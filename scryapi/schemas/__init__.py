@@ -1,5 +1,9 @@
 """Request parsing and response serialisation. Never serialise models wholesale."""
 
+from datetime import UTC
+
+from flask import request
+
 from scryapi.errors import ValidationError
 
 MAX_PARAM_LENGTH = 100
@@ -58,3 +62,22 @@ def parse_pagination(args, errors):
 
 def paginated(page, limit, total, results):
     return {"page": page, "limit": limit, "total": total, "results": results}
+
+
+def json_body():
+    """The request's JSON object body, or a 400 if it is missing or not an object."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        raise ValidationError(
+            [{"field": "body", "message": "must be a JSON object"}], "Expected a JSON body"
+        )
+    return body
+
+
+def iso(dt):
+    """ISO 8601 in UTC. SQLite hands back naive datetimes; they were stored as UTC."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")

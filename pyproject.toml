@@ -18,6 +18,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "gunicorn>=23",
     "psycopg[binary]>=3.2",
+    "Flask-Login>=0.6.3,<1",
+    "Flask-WTF>=1.2,<2",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +36,11 @@ include = ["scryapi*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+filterwarnings = [
+    "error::DeprecationWarning:scryapi.*",
+    # Flask-Login 0.6.3 still calls datetime.utcnow() for remember cookies.
+    "ignore:datetime.datetime.utcnow:DeprecationWarning:flask_login",
+]
 
 [tool.ruff]
 line-length = 100

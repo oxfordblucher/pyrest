@@ -3,6 +3,7 @@
 import logging
 
 from flask import jsonify
+from flask_wtf.csrf import CSRFError
 from werkzeug.exceptions import HTTPException
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,10 @@ def register_error_handlers(app):
     @app.errorhandler(ApiError)
     def handle_api_error(e):
         return error_response(e.status, e.error, e.message, e.details)
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        return error_response(400, "csrf_failed", e.description)
 
     @app.errorhandler(HTTPException)
     def handle_http_exception(e):

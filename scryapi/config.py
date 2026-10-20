@@ -15,6 +15,11 @@ class BaseConfig:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE = False
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_SECURE = False
+    # CSRF tokens live as long as the session rather than expiring after an hour.
+    WTF_CSRF_TIME_LIMIT = None
     # Where downloaded bulk files go; defaults to <instance_path>/data.
     SCRYAPI_DATA_DIR = os.environ.get("SCRYAPI_DATA_DIR")
 
@@ -36,6 +41,7 @@ class TestConfig(BaseConfig):
 class ProdConfig(BaseConfig):
     SQLALCHEMY_DATABASE_URI = _database_url()
     SESSION_COOKIE_SECURE = True
+    REMEMBER_COOKIE_SECURE = True
 
     @classmethod
     def validate(cls):

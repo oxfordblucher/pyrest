@@ -24,7 +24,8 @@ A Flask JSON API that mirrors Scryfall Oracle card data for search, with users a
 - Fixtures in `tests/conftest.py`: `app` (in-memory SQLite, schema built by running the
   real migrations), `client`, `db`, `no_network` (a `responses` mock, autouse), and
   `cards` (21 real Scryfall cards from `tests/fixtures/cards_sample.json`, loaded through
-  the real importer).
+  the real importer). `alice`, `bob` and `anon` are `ApiClient`s (logged in, logged in,
+  anonymous) that attach the CSRF token to mutating requests automatically.
 - `xfail(strict=True)` tests encode target behaviour for open AUDIT items. Fixing an item
   makes its test pass, strict mode then fails the run, and you remove the marker.
 

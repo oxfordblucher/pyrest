@@ -369,7 +369,7 @@ duration.
 
 ## M2 — Users & authentication (session cookies)
 
-### [ ] S1 · P1 · Hash passwords; implement session auth
+### [x] S1 · P1 · Hash passwords; implement session auth
 **Where:** `scryapi/models/user.py:8`.
 **Problem:** `password` column implies plaintext storage; there is no registration,
 login, or authorisation anywhere.
@@ -381,7 +381,7 @@ error message on bad credentials; constant-ish time (always hash on login).
 **Acceptance:** tests for register, duplicate email/name (409), login success/failure,
 logout, `me` requires auth (401), POST without CSRF token → 400/403.
 
-### [ ] S2 · P1 · Explicit response serialisation
+### [x] S2 · P1 · Explicit response serialisation
 **Where:** `scryapi/extensions.py:5-6` (`Base.to_dict`), used in `card_routes.py:19,29`.
 **Problem:** `to_dict()` dumps every column. Applied to `User` it would leak
 `email` and the password hash; applied to future models it leaks whatever is added.
@@ -389,13 +389,28 @@ logout, `me` requires auth (401), POST without CSRF token → 400/403.
 pydantic schemas) with explicit allow-lists per TDD §9.
 **Acceptance:** test that `GET /api/users/<name>` response keys equal the documented set.
 
-### [ ] C1 (users) · P0 · Fix user list endpoint
+### [x] C1 (users) · P0 · Fix user list endpoint
 **Where:** `scryapi/routes/user_routes.py:7-10`.
 **Problem:** `jsonify(db.session.execute(...))` passes a `Result` object → `TypeError`
 → 500. Also an unauthenticated user directory is not in the PRD.
 **Fix:** replace with `GET /api/users/<username>` public profile (S2 serialiser); drop
 the list endpoint unless the PRD adds it.
 **Acceptance:** request test passes.
+
+---
+
+### M2 completion notes
+
+- Login and registration clear the session before `login_user`, which rotates the
+  session and prevents fixation. The new CSRF token comes back in the `X-CSRFToken`
+  response header, so clients don't need a second round trip.
+- `WTF_CSRF_TIME_LIMIT = None`: tokens live as long as the session.
+- `GET /api/users` (the user directory) is removed. Public profiles are
+  `GET /api/users/<username>` and never include email.
+- **Test-harness finding:** the `app` fixture's long-lived app context made Flask reuse
+  `g` across test-client requests, which leaked the cached CSRF token and logged-in user
+  between clients. `tests/conftest.py` now resets `g` at the start of each request.
+  Production isn't affected.
 
 ---
 

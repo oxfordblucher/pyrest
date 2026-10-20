@@ -1,0 +1,57 @@
+from flask import Blueprint, session
+from flask_login import current_user, login_required, login_user, logout_user
+from flask_wtf.csrf import generate_csrf
+
+from scryapi.errors import ApiError
+from scryapi.schemas import json_body
+from scryapi.schemas.user import dump_me, parse_login, parse_registration
+from scryapi.services import users as user_service
+
+authbp = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+CSRF_HEADER = "X-CSRFToken"
+
+
+def _start_session(user, remember=False):
+    """Log in on a fresh session (prevents session fixation).
+
+    Clearing the session also drops the old CSRF token, so the new one is returned in
+    the X-CSRFToken response header for the client's next mutating request.
+    """
+    session.clear()
+    login_user(user, remember=remember)
+    return {CSRF_HEADER: generate_csrf()}
+
+
+@authbp.get("/csrf")
+def get_csrf_token():
+    token = generate_csrf()
+    return {"csrf_token": token}, 200, {CSRF_HEADER: token}
+
+
+@authbp.post("/register")
+def register():
+    user = user_service.register(parse_registration(json_body()))
+    return dump_me(user), 201, _start_session(user)
+
+
+@authbp.post("/login")
+def login():
+    credentials = parse_login(json_body())
+    user = user_service.authenticate(credentials)
+    if user is None:
+        raise ApiError(401, "unauthorized", "Invalid username/email or password")
+    return dump_me(user), 200, _start_session(user, remember=credentials.remember)
+
+
+@authbp.post("/logout")
+def logout():
+    logout_user()
+    session.clear()
+    return "", 204
+
+
+@authbp.get("/me")
+@login_required
+def me():
+    return dump_me(current_user)

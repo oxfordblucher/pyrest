@@ -1,5 +1,6 @@
+from .auth import authbp
 from .cards import cardsbp
 from .deck_routes import decksbp
-from .user_routes import usersbp
+from .users import usersbp
 
-__all__ = ["cardsbp", "decksbp", "usersbp"]
+__all__ = ["authbp", "cardsbp", "decksbp", "usersbp"]
