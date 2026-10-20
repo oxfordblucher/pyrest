@@ -1,5 +1,7 @@
+from sqlalchemy import DDL, event
+
 from scryapi.extensions import db
-from sqlalchemy import event, DDL
+
 
 class Card(db.Model):
     __tablename__ = "cards"
@@ -12,11 +14,12 @@ class Card(db.Model):
     power = db.Column(db.Integer)
     toughness = db.Column(db.Integer)
 
+
 event.listen(
     Card.__table__,
-    'after_create',
+    "after_create",
     DDL("""
         CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts
         USING fts5(oracle_text, content='cards', content_rowid='id');
-    """)
+    """),
 )

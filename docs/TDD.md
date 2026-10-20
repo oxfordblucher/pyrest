@@ -139,7 +139,7 @@ Notes:
 ```python
 class SearchBackend(Protocol):
     def apply_text_filter(self, stmt: Select, text: str) -> Select: ...
-    def rebuild(self) -> None: ...          # after bulk import
+    def rebuild(self) -> None: ...  # after bulk import
 ```
 
 `search.get_backend()` chooses the backend from `db.engine.dialect.name`.
@@ -309,8 +309,11 @@ simple and makes each edit atomic. Limits: at most 250 entries, quantity 1–99.
 - Flask-Migrate, with `migrations/` at the repo root. Each change gets one revision with
   a descriptive message. Search objects use dialect-conditional `op.execute()`:
   ```python
-  if op.get_bind().dialect.name == "sqlite": op.execute("CREATE VIRTUAL TABLE ...")
-  else: op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm"); ...
+  if op.get_bind().dialect.name == "sqlite":
+      op.execute("CREATE VIRTUAL TABLE ...")
+  else:
+      op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+      ...
   ```
 - `env.py` `include_object` excludes any table whose name starts with `cards_fts`.
 - Fresh environment: `flask db upgrade && flask sync-cards`. `db.create_all()` is never

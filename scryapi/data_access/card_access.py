@@ -1,6 +1,7 @@
+from flask import request
+
 from scryapi.extensions import db
 from scryapi.models import Card
-from flask import request
 from scryapi.sanitation.req_sani import PageSanitizer
 
 FILTER_MAP = {
@@ -9,11 +10,9 @@ FILTER_MAP = {
 }
 
 cards_fts = db.Table(
-    "cards_fts",
-    db.metadata,
-    db.Column("rowid", db.String),
-    db.Column("oracle_text", db.Text)
+    "cards_fts", db.metadata, db.Column("rowid", db.String), db.Column("oracle_text", db.Text)
 )
+
 
 def get_card_data(limit, page):
     sani = PageSanitizer(req=request)
@@ -27,7 +26,9 @@ def get_card_data(limit, page):
             stmt = stmt.where(filter_fn(value))
 
     if search := request.args.get("text"):
-        stmt = stmt.join(cards_fts, Card.id == cards_fts.c.rowid).where(cards_fts.c.oracle_text.match(search))
+        stmt = stmt.join(cards_fts, Card.id == cards_fts.c.rowid).where(
+            cards_fts.c.oracle_text.match(search)
+        )
 
     stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(Card.name)
     cards = db.session.execute(stmt).scalars().all()

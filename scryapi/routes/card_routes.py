@@ -1,11 +1,13 @@
 from flask import Blueprint, jsonify, request
+
+from scryapi.data_access.card_access import get_card_data
 from scryapi.extensions import db
 from scryapi.models.card import Card
-from scryapi.data_access.card_access import get_card_data
 
-cardsbp = Blueprint('cards', __name__, url_prefix='/api/cards')
+cardsbp = Blueprint("cards", __name__, url_prefix="/api/cards")
 
-@cardsbp.get('/')
+
+@cardsbp.get("/")
 def get_cards():
     try:
         limit = min(int(request.args.get("limit", 20)), 50)
@@ -17,13 +19,10 @@ def get_cards():
     cards = get_card_data(limit, page)
 
     res = [row.to_dict() for row in cards]
-    return jsonify({
-        "page": page,
-        "limit": limit,
-        "results": res
-    })
+    return jsonify({"page": page, "limit": limit, "results": res})
 
-@cardsbp.get('/<int:id>')
+
+@cardsbp.get("/<int:id>")
 def get_card_by_id(id):
     card = db.get_or_404(Card, id)
     res = card.to_dict()

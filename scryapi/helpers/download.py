@@ -1,6 +1,7 @@
-from pathlib import Path
-import requests
 import json
+from pathlib import Path
+
+import requests
 
 dl_folder = Path(__file__).resolve().parent.parent / "data"
 dl_file_path = dl_folder / "card_data.json"

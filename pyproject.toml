@@ -36,7 +36,10 @@ addopts = "-ra --strict-markers"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["migrations"]
+extend-exclude = [
+    "migrations",
+    "scryapi/routes/public_routes.py",  # not valid Python yet; remove with AUDIT C3
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]

@@ -1,16 +1,19 @@
-from scryapi.extensions import db
+import json
 from pathlib import Path
+
 from sqlalchemy.dialects.sqlite import insert
 
-import json
+from scryapi.extensions import db
 from scryapi.models import Card
 
 
 def sync_fts():
-    db.session.execute(db.text("""
+    db.session.execute(
+        db.text("""
         INSERT INTO cards_fts(cards_fts)
         VALUES('rebuild')
-    """))
+    """)
+    )
     db.session.commit()
 
 
@@ -18,7 +21,7 @@ DEFAULT_JSON_PATH = Path(__file__).resolve().parent.parent / "data" / "card_data
 
 
 def import_cards(json_path=DEFAULT_JSON_PATH):
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
     BATCH_SIZE = 500

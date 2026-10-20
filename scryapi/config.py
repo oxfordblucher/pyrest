@@ -56,4 +56,6 @@ def get_config(env=None):
     try:
         return CONFIGS[env]
     except KeyError:
-        raise RuntimeError(f"Unknown SCRYAPI_ENV {env!r}; expected one of {sorted(CONFIGS)}") from None
+        raise RuntimeError(
+            f"Unknown SCRYAPI_ENV {env!r}; expected one of {sorted(CONFIGS)}"
+        ) from None

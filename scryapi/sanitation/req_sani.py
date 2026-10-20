@@ -1,6 +1,4 @@
-from flask import Flask, abort
-
-class Sanitation():
+class Sanitation:
     def __init__(self, req):
         self.req = req
         self.req_args_dict = {}
@@ -13,7 +11,6 @@ class Sanitation():
             return 400, ", ".join(self.errors)
             # abort(400, description=", ".join(self.errors))
 
-            
 
 class PageSanitizer(Sanitation):
     def check_pagination(self):
@@ -27,8 +24,5 @@ class PageSanitizer(Sanitation):
             except (ValueError, TypeError):
                 self.errors.append(f"{arg[0].capitalize()} needs to be a number")
 
-            if (int_arg and int_arg < 1):
+            if int_arg and int_arg < 1:
                 self.errors.append(f"{arg[0].capitalize()} needs to be greater than 0")
-
-        
-        
