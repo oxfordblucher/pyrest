@@ -237,9 +237,15 @@ flask sync-cards [--file PATH] [--force]
 - On login, regenerate the session (`session.clear()` before `login_user`) to prevent
   session fixation.
 - **CSRF:** Flask-WTF `CSRFProtect` covers POST/PUT/PATCH/DELETE. The client fetches a
-  token from `GET /api/auth/csrf` and sends it as the `X-CSRFToken` header.
-- Ownership checks live in services (`decks.get_owned_or_404`). Someone else's private
-  deck returns **404**, so private decks can't be enumerated.
+  token from `GET /api/auth/csrf` and sends it as the `X-CSRFToken` header. Login and
+  register rotate the session, so they return the new token in an `X-CSRFToken`
+  response header. Tokens last as long as the session (`WTF_CSRF_TIME_LIMIT = None`).
+- Ownership checks live in services (`decks.get_visible` / `decks.get_owned`). Someone
+  else's private deck returns **404** for every method, so private decks can't be
+  enumerated. Changing someone else's *public* deck returns **403**, since the deck is
+  visible anyway. Anonymous mutations return **401**.
+- SQLite connections run `PRAGMA foreign_keys=ON` (see `extensions.py`), so FK and
+  cascade behaviour matches Postgres.
 - Rate limits use Flask-Limiter: `/api/cards*` 60/min/IP and `/api/auth/login|register`
   10/min/IP.
 
@@ -285,20 +291,23 @@ Paginated responses use `{ "page", "limit", "total", "results": [...] }`.
 ### Decks
 | Method | Path | Auth | Body | Response |
 |---|---|---|---|---|
-| GET | `/api/decks/public` | – | `page`, `limit` | paginated `DeckSummary`, newest first |
+| GET | `/api/decks/public` | – | `page`, `limit` | paginated `DeckSummary`, most recently updated first |
 | GET | `/api/decks/mine` | ✓ | `page`, `limit` | paginated `DeckSummary` |
 | POST | `/api/decks` | ✓ | `{name, description?, format?, is_public?}` | 201 `Deck` |
 | GET | `/api/decks/<id>` | owner, or anyone if public | | `Deck` |
 | PATCH | `/api/decks/<id>` | owner | any of the create fields | `Deck` |
 | DELETE | `/api/decks/<id>` | owner | | 204 |
-| PUT | `/api/decks/<id>/cards` | owner | `{cards: [{card_id (scryfall_id), quantity, board}]}` (replaces the full list) | `Deck` |
+| PUT | `/api/decks/<id>/cards` | owner | `{cards: [{card_id (scryfall_id), quantity, board? = "main"}]}` (replaces the full list) | `Deck` |
 
-`DeckSummary` = `{id, name, format, is_public, owner (username), card_count, updated_at}`.
-`Deck` = `DeckSummary + {description, cards: [{card: CardSummary, quantity, board}]}`.
+`DeckSummary` = `{id, name, format, is_public, owner (username), card_count, created_at, updated_at}`.
+`Deck` = `DeckSummary + {description, cards: [{card: CardSummary, quantity, board}]}`. Cards
+are ordered by main board first, then side, then by name.
 `CardSummary` = `{id, name, mana_cost, type_line}`.
 
 Replacing the full card list (PUT) rather than per-card endpoints keeps the client
-simple and makes each edit atomic. Limits: at most 250 entries, quantity 1–99.
+simple and makes each edit atomic. Limits: at most 250 entries, quantity 1–99, with no
+duplicate (card, board) pairs. Unknown card ids return 400 with per-entry details, and
+the deck is left unchanged. Soft-deleted cards (`is_active=false`) stay in decks.
 
 ## 10. Testing strategy
 

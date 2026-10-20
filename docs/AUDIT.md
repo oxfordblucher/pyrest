@@ -416,7 +416,7 @@ the list endpoint unless the PRD adds it.
 
 ## M3 — Decks & public sharing
 
-### [ ] C9 · P0 · Fix `deck_cards` schema
+### [x] C9 · P0 · Fix `deck_cards` schema
 **Where:** `scryapi/models/deck_cards.py:3-7`, `scryapi/models/deck.py`.
 **Problem:** `card_id` is `String` but references `cards.id` (`Integer`) — Postgres
 rejects the FK. A plain association table also can't hold a quantity, which every deck
@@ -426,7 +426,7 @@ board ENUM main|side)`; `ON DELETE CASCADE` from decks; add `Deck.is_public`,
 `description`, `format`, `created_at`, `updated_at`; index `decks.user_id`.
 **Acceptance:** migration upgrades on both DBs; model tests for cascade delete.
 
-### [ ] C1 (decks) + C2 · P0 · Implement deck routes
+### [x] C1 (decks) + C2 · P0 · Implement deck routes
 **Where:** `scryapi/routes/deck_routes.py:7-22`.
 **Problem:** `get_decks` jsonifies a `Result` (500); `get_user_decks`, `make_deck`,
 `update_deck` return `None` (Flask raises → 500); `update_deck()` is missing the `id`
@@ -435,7 +435,7 @@ parameter declared in the route (`TypeError`).
 add/remove cards. Ownership check returns 404 (not 403) for other users' private decks.
 **Acceptance:** CRUD + authorisation tests (owner, other user, anonymous).
 
-### [ ] C3 · P0 · Rewrite public routes
+### [x] C3 · P0 · Rewrite public routes
 **Where:** `scryapi/routes/public_routes.py:5,7,17`.
 **Problem:** Module cannot be imported: `Blueprint("")` raises `ValueError`;
 `publicbp.before_request()` is called without a function (`TypeError`); line 17 is a
@@ -444,6 +444,20 @@ module imports it.
 **Fix:** fold into the deck blueprint as `GET /api/decks/public` and
 `GET /api/users/<username>/decks` (public only), per TDD §9; delete the file.
 **Acceptance:** endpoints tested; file removed.
+
+---
+
+### M3 completion notes
+
+- `DeckCard` is an association object keyed on (deck, card, board) with `quantity`.
+  CHECK constraints cover quantity ≥ 1 and board ∈ {main, side}. Deletes cascade from
+  users to decks to deck_cards, both in the DB (`ON DELETE CASCADE`) and in the ORM.
+- SQLite now enforces foreign keys (`PRAGMA foreign_keys=ON`). A future migration that
+  rebuilds a table in batch mode must switch them off around the rebuild.
+- `public_routes.py` is deleted. Its endpoints are `GET /api/decks/public` and
+  `GET /api/users/<username>/decks`.
+- `tests/test_migrations.py::test_models_match_migrations` now passes: models and
+  migrations agree.
 
 ---
 

@@ -1,4 +1,3 @@
-import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from flask_migrate import downgrade, upgrade
@@ -13,7 +12,6 @@ def _include_object(object, name, type_, reflected, compare_to):
     return not (type_ == "column" and name == "search_vector")
 
 
-@pytest.mark.xfail(strict=True, reason="users/decks revisions land in M2/M3 (AUDIT S1, C9)")
 def test_models_match_migrations(app):
     """`flask db migrate` right after `upgrade` must produce no changes."""
     with db.engine.connect() as conn:
