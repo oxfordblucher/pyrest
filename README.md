@@ -34,29 +34,37 @@ Settings come from environment variables. A `.env` file is loaded automatically 
 | Variable | Default | Notes |
 |---|---|---|
 | `SCRYAPI_ENV` | `development` | `development`, `testing` or `production` |
-| `DATABASE_URL` | `sqlite:///dev.sqlite3` (in `instance/`) | required in production |
+| `DATABASE_URL` | `sqlite:///dev.sqlite3` (in `instance/`) | required in production (Postgres) |
 | `SECRET_KEY` | dev placeholder | required in production, ≥ 32 chars |
-| `SCRYAPI_ENABLE_SCHEDULER` | `1` in dev, `0` otherwise | downloads and imports Scryfall data at startup and weekly |
+| `SCRYAPI_DATA_DIR` | `instance/data` | where the downloaded bulk file is kept |
 
 ## Running
 
 ```sh
-# Create tables (stopgap until migrations are fixed, AUDIT C8)
-SCRYAPI_ENABLE_SCHEDULER=0 flask --app scryapi init-db
-
-# Run the dev server. With the scheduler on, the first start downloads around 150 MB
-# from Scryfall and imports it before serving.
-flask --app scryapi run
+flask --app scryapi db upgrade     # create or upgrade the schema
+flask --app scryapi sync-cards     # download (~25 MB) and import Scryfall Oracle cards
+flask --app scryapi run            # dev server
 ```
+
+Run `sync-cards` again any time. It skips the import when Scryfall's data hasn't
+changed (`--force` overrides this). To work offline, use
+`sync-cards --file tests/fixtures/cards_sample.json` to load 21 sample cards.
+
+For a weekly refresh, schedule `flask --app scryapi sync-cards` with cron or your host's
+scheduled jobs. Or run `flask --app scryapi run-scheduler` as a single long-lived
+process.
+
+Production: `gunicorn 'scryapi:create_app()'`, with `flask db upgrade` as a release step.
 
 ## API (current)
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/cards/` | `name`, `type` (substring), `text` (full-text rules text), `page`, `limit` (≤ 50) |
-| GET | `/api/cards/<id>` | |
+| GET | `/api/cards` | `name`, `type` (substring), `text` (full-text over rules text), `page` ≥ 1, `limit` 1–50 |
+| GET | `/api/cards/<scryfall_id>` | |
 
-The target v1 API is specified in [TDD §9](docs/TDD.md#9-api-contract-v1).
+All errors are JSON: `{"error": "<code>", "message": "...", "details": [...]}`.
+The full v1 API is specified in [TDD §9](docs/TDD.md#9-api-contract-v1).
 
 ## Development
 

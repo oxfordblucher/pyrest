@@ -1,4 +1,4 @@
-from .card_routes import cardsbp
+from .cards import cardsbp
 from .deck_routes import decksbp
 from .user_routes import usersbp
 

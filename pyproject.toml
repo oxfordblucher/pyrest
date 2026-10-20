@@ -17,6 +17,7 @@ dependencies = [
     "APScheduler>=3.11,<4",
     "python-dotenv>=1.0",
     "gunicorn>=23",
+    "psycopg[binary]>=3.2",
 ]
 
 [project.optional-dependencies]

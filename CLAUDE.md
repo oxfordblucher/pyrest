@@ -13,17 +13,26 @@ A Flask JSON API that mirrors Scryfall Oracle card data for search, with users a
 - Test: `pytest` from the repo root. Network is blocked by an autouse fixture, so mock
   HTTP with `responses`.
 - Lint and format: `ruff check . && ruff format .`
-- Create tables (stopgap until C8): `SCRYAPI_ENABLE_SCHEDULER=0 flask --app scryapi init-db`
-- Run: `flask --app scryapi run`. **Warning:** in dev the scheduler is on by default and
-  downloads about 150 MB from Scryfall at startup (AUDIT C5). Set
-  `SCRYAPI_ENABLE_SCHEDULER=0` unless you need the data.
-- Don't run the migration in `migrations/versions/`. It destroys the FTS index (AUDIT C8).
+- Schema: `flask --app scryapi db upgrade`. For a new revision, run
+  `flask --app scryapi db migrate -m "<message>"`, then review the file. Search objects
+  (`cards_fts*`, `search_vector`, trigram indexes) are hand-written and dialect-conditional.
+  See the baseline revision.
+- Load data offline: `flask --app scryapi sync-cards --file tests/fixtures/cards_sample.json`
+- Run: `flask --app scryapi run`
 
 ## Testing conventions
-- Fixtures in `tests/conftest.py`: `app`, `client`, `db`, and `cards` (21 real Scryfall
-  cards from `tests/fixtures/cards_sample.json`, loaded through the real importer).
+- Fixtures in `tests/conftest.py`: `app` (in-memory SQLite, schema built by running the
+  real migrations), `client`, `db`, `no_network` (a `responses` mock, autouse), and
+  `cards` (21 real Scryfall cards from `tests/fixtures/cards_sample.json`, loaded through
+  the real importer).
 - `xfail(strict=True)` tests encode target behaviour for open AUDIT items. Fixing an item
   makes its test pass, strict mode then fails the run, and you remove the marker.
+
+## Layout
+`routes/` (thin HTTP) → `schemas/` (parse args, dump JSON) → `services/` (queries, rules)
+→ `models/`. `search/` holds the dialect-specific full-text search. `sync/` holds the
+Scryfall pipeline and CLI commands. `errors.py` holds `ApiError` and `ValidationError`.
+Raise those, and the handlers turn them into the JSON error envelope.
 
 ## Rules
 - SQLite in dev/test, Postgres in prod. Dialect-specific code goes only in `search/`,

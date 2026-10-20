@@ -1,17 +1,22 @@
 import os
 
 
-def _env_flag(name, default):
-    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+def _database_url(default=None):
+    url = os.environ.get("DATABASE_URL", default)
+    # Some hosts still hand out the scheme SQLAlchemy dropped in 1.4.
+    if url and url.startswith("postgres://"):
+        url = "postgresql://" + url.removeprefix("postgres://")
+    return url
 
 
 class BaseConfig:
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///dev.sqlite3")
+    SQLALCHEMY_DATABASE_URI = _database_url("sqlite:///dev.sqlite3")
     SECRET_KEY = os.environ.get("SECRET_KEY")
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE = False
-    SCRYAPI_ENABLE_SCHEDULER = _env_flag("SCRYAPI_ENABLE_SCHEDULER", "0")
+    # Where downloaded bulk files go; defaults to <instance_path>/data.
+    SCRYAPI_DATA_DIR = os.environ.get("SCRYAPI_DATA_DIR")
 
     @classmethod
     def validate(cls):
@@ -20,19 +25,16 @@ class BaseConfig:
 
 class DevConfig(BaseConfig):
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-secret-key")
-    # Kept on in dev until `flask sync-cards` exists (AUDIT C5); it is the only way to load data.
-    SCRYAPI_ENABLE_SCHEDULER = _env_flag("SCRYAPI_ENABLE_SCHEDULER", "1")
 
 
 class TestConfig(BaseConfig):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     SECRET_KEY = "test-secret-key"
-    SCRYAPI_ENABLE_SCHEDULER = False
 
 
 class ProdConfig(BaseConfig):
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
+    SQLALCHEMY_DATABASE_URI = _database_url()
     SESSION_COOKIE_SECURE = True
 
     @classmethod

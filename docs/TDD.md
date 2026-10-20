@@ -61,8 +61,9 @@ scryapi/
   models/             card.py, user.py, deck.py (Deck, DeckCard), sync_state.py
   schemas/            card.py, user.py, deck.py  (parse_* and dump_* functions)
   services/           cards.py, users.py, decks.py
-  search/             __init__.py (get_backend), base.py, sqlite_fts.py, postgres_fts.py
-  sync/               download.py, normalise.py, importer.py, cli.py, scheduler.py
+  search/             __init__.py (get_backend), sqlite_fts.py, postgres_fts.py
+  sync/               __init__.py (run_sync), download.py, normalise.py, importer.py,
+                      cli.py, scheduler.py
   routes/             cards.py, auth.py, users.py, decks.py
 tests/
   conftest.py
@@ -90,12 +91,12 @@ cards
   oracle_id       text  index
   name            text  not null  index    (+ pg_trgm GIN on Postgres)
   mana_cost       text
-  cmc             numeric(6,2)
+  cmc             float
   type_line       text
   oracle_text     text                     (faces joined with "\n//\n")
-  power           varchar(8)               ("*", "1+*", "X" are valid)
-  toughness       varchar(8)
-  loyalty         varchar(8)
+  power           varchar(16)              ("*", "1+*", "X" are valid)
+  toughness       varchar(16)
+  loyalty         varchar(16)
   colors          json
   color_identity  json
   layout          text
@@ -104,7 +105,7 @@ cards
   scryfall_uri    text
   is_active       bool default true        (false if dropped from latest bulk: soft delete)
   updated_at      timestamptz
-  search_vector   tsvector GENERATED       (Postgres only; GIN index)
+  search_vector   tsvector GENERATED       (Postgres only; GIN index; not in ORM model)
 
 decks
   id              PK int
@@ -123,7 +124,7 @@ deck_cards                                  (association object)
 
 sync_state
   key             PK text  ('oracle_cards')
-  source_updated_at timestamptz             (Scryfall bulk "updated_at")
+  source_updated_at text                    (Scryfall bulk "updated_at", compared for equality)
   last_success_at   timestamptz
   last_error        text
 ```
@@ -145,11 +146,10 @@ class SearchBackend(Protocol):
 `search.get_backend()` chooses the backend from `db.engine.dialect.name`.
 
 **SQLite (`sqlite_fts.py`)**
-- An external-content FTS5 table: `CREATE VIRTUAL TABLE cards_fts USING fts5(name, oracle_text, type_line, content='cards', content_rowid='id')`. It is created in a migration and is **not** declared in ORM metadata.
+- An external-content FTS5 table over rules text only (PRD FR-C1: `text` searches rules text; `name`/`type` have their own filters): `CREATE VIRTUAL TABLE cards_fts USING fts5(oracle_text, content='cards', content_rowid='id', tokenize='porter unicode61')`. Porter stemming roughly matches Postgres's `english` config. It is created in a migration and is **not** declared in ORM metadata.
 - Query building: split the user input on whitespace, drop empty terms, and wrap each
   term in double quotes with internal `"` doubled. Join the terms with spaces (implicit
   AND). This turns any input into a valid FTS5 query, so there are no syntax errors.
-  Optionally append `*` to the last term for prefix search.
 - Filter: `Card.id.in_(select rowid from cards_fts where cards_fts match :q)` via `text()`.
 - Sync: the importer is the only writer, so `rebuild()` runs
   `INSERT INTO cards_fts(cards_fts) VALUES('rebuild')` once after each import, inside the
@@ -157,7 +157,8 @@ class SearchBackend(Protocol):
   upsert for no benefit.
 
 **Postgres (`postgres_fts.py`)**
-- `search_vector tsvector GENERATED ALWAYS AS (setweight(to_tsvector('english', coalesce(name,'')),'A') || setweight(to_tsvector('english', coalesce(type_line,'')),'B') || setweight(to_tsvector('english', coalesce(oracle_text,'')),'C')) STORED` with a GIN index.
+- `search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', coalesce(oracle_text, ''))) STORED` with a GIN index. Not declared in the ORM model. `migrations/env.py` excludes it and the search indexes from autogenerate.
+- Results are ordered by name, not by rank, the same as on SQLite.
 - Filter: `search_vector @@ websearch_to_tsquery('english', :q)`. `websearch_to_tsquery`
   never raises on user input.
 - `rebuild()` is a no-op.
@@ -169,16 +170,29 @@ Every substring filter escapes `\ % _` and passes `escape='\\'` (AUDIT S6).
 
 ```
 flask sync-cards [--file PATH] [--force]
-  1. GET https://api.scryfall.com/bulk-data/oracle_cards  → {download_uri, updated_at, size}
-  2. if updated_at <= sync_state.source_updated_at and not --force: exit "up to date"
-  3. stream download_uri → data/oracle_cards.json.part ; verify size ; os.replace → .json
-  4. ijson.items(file, "item") → normalise_card() → batches of 1000
-  5. one transaction: upsert batches (dialect-aware ON CONFLICT (scryfall_id) DO UPDATE),
-     mark cards not seen in this run is_active=false, search.rebuild()
+  1. GET https://api.scryfall.com/bulk-data/oracle_cards
+       → {jsonl_download_uri, updated_at, compressed_size}
+  2. if updated_at == sync_state.source_updated_at and not --force: exit "up to date"
+  3. stream jsonl_download_uri → <data dir>/oracle_cards.jsonl.gz.part ;
+       verify byte count == compressed_size ; os.replace → oracle_cards.jsonl.gz
+  4. gzip-decode line by line → skip non-cards and art_series → normalise_card()
+       → batches of 500
+  5. one transaction: mark all cards is_active=false, upsert batches (dialect-aware
+     ON CONFLICT (scryfall_id) DO UPDATE ... is_active=true), search.rebuild()
   6. update sync_state (last_success_at / last_error), log counts + duration
 ```
 
-- `--file` skips steps 1–3. Tests and offline development use it.
+- `--file` skips steps 1–3 and accepts `.jsonl`, `.jsonl.gz` or a small `.json` array
+  (the test fixture). Tests and offline development use it.
+- **Bulk format:** as of 2026-10, Scryfall's bulk-data objects only offer gzipped JSON
+  Lines (`jsonl_download_uri`). The old `download_uri` JSON array is gone. Streaming
+  lines keeps peak RSS around 180 MB for the full ~36.5k-card import, which takes
+  about 10 s on SQLite.
+- **Normalisation:** for multi-face cards, text fields (`oracle_text`, `mana_cost`,
+  `type_line`) are joined across faces so every face is searchable. Stats
+  (power/toughness/loyalty) come from the first face that has them, and the per-face
+  details go in `card_faces`. `art_series` layouts are skipped, the same as Scryfall's
+  own search hides them by default.
 - **HTTP:** one `requests.Session` with headers `User-Agent: scryapi/<version> (+repo url)`
   and `Accept: application/json;q=0.9,*/*;q=0.8`, `timeout=(5, 60)`, and urllib3 `Retry`
   (3 tries, backoff 1s, on 429/500/502/503/504).
@@ -187,10 +201,11 @@ flask sync-cards [--file PATH] [--force]
 - **Scheduling:**
   - *Prod (preferred):* the platform cron / scheduled container runs `flask sync-cards`
     weekly. Web workers never schedule anything.
-  - *Single-process option:* `scryapi/sync/scheduler.py` starts APScheduler only when
-    `SCRYAPI_ENABLE_SCHEDULER=1`. It's launched from a dedicated `flask run-scheduler`
-    command (one process), with `max_instances=1, coalesce=True`, and the job body runs
-    under `app.app_context()`.
+  - *Single-process option:* `flask run-scheduler [--interval SECONDS]` runs a
+    `BlockingScheduler` in its own process. It syncs immediately, then on the interval,
+    with `max_instances=1, coalesce=True`. The job body runs under `app.app_context()`
+    and swallows errors after they're logged and recorded, so the scheduler keeps
+    running.
 - **Upsert helper:** `sync/importer.py::upsert_cards(rows)` picks
   `sqlalchemy.dialects.{sqlite,postgresql}.insert` by dialect. Both expose
   `on_conflict_do_update`.
@@ -199,7 +214,7 @@ flask sync-cards [--file PATH] [--force]
 
 | Key | Dev | Test | Prod |
 |---|---|---|---|
-| `SQLALCHEMY_DATABASE_URI` (`DATABASE_URL`) | `sqlite:///instance/dev.sqlite3` | `sqlite:///:memory:` | Postgres URL, **required** |
+| `SQLALCHEMY_DATABASE_URI` (`DATABASE_URL`) | `sqlite:///dev.sqlite3` (in `instance/`) | `sqlite:///:memory:` | Postgres URL, **required** |
 | `SECRET_KEY` | fixed dev value | fixed test value | env, **required**, ≥ 32 bytes |
 | `SESSION_COOKIE_SECURE` | False | False | True |
 | `SESSION_COOKIE_HTTPONLY` | True | True | True |
@@ -207,8 +222,7 @@ flask sync-cards [--file PATH] [--force]
 | `REMEMBER_COOKIE_*` | mirror the session settings | | |
 | `WTF_CSRF_ENABLED` | True | True (tests fetch a token) | True |
 | `RATELIMIT_STORAGE_URI` | memory:// | memory:// (or disabled) | redis:// |
-| `SCRYAPI_DATA_DIR` | `./data` | tmp dir | volume path |
-| `SCRYAPI_ENABLE_SCHEDULER` | 0 | 0 | 0 (cron) or 1 (single scheduler process) |
+| `SCRYAPI_DATA_DIR` | `<instance>/data` | tmp dir | volume path |
 
 `create_app(config: type[BaseConfig] | None = None)` selects a config from
 `SCRYAPI_ENV` (`development` | `testing` | `production`) unless one is passed in.

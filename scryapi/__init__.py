@@ -1,42 +1,35 @@
+from pathlib import Path
+
 from flask import Flask
 
 from scryapi import models  # noqa: F401  (registers models on db.metadata)
 from scryapi.config import get_config
-from scryapi.extensions import db
-from scryapi.helpers.scheduler import schedule_job
+from scryapi.errors import register_error_handlers
+from scryapi.extensions import db, migrate
 from scryapi.routes import cardsbp, decksbp, usersbp
+from scryapi.sync.cli import run_scheduler_command, sync_cards_command
 
-
-def create_tables():
-    """Create all tables. Stopgap until migrations replace it (AUDIT C8).
-
-    `cards_fts` is skipped because it is declared on db.metadata as a plain table but is
-    really the FTS5 virtual table created by Card's after_create hook (AUDIT C7).
-    """
-    tables = [t for t in db.metadata.sorted_tables if t.name != "cards_fts"]
-    db.metadata.create_all(bind=db.engine, tables=tables)
+MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
 
 def create_app(config=None):
+    """Build the app. Must stay free of network and bulk I/O side effects."""
     config = config or get_config()
     config.validate()
 
     app = Flask(__name__)
     app.config.from_object(config)
+    app.url_map.strict_slashes = False
 
+    db.init_app(app)
+    migrate.init_app(app, db, directory=str(MIGRATIONS_DIR))
+
+    register_error_handlers(app)
     app.register_blueprint(cardsbp)
     app.register_blueprint(decksbp)
     app.register_blueprint(usersbp)
 
-    db.init_app(app)
-
-    @app.cli.command("init-db")
-    def init_db():
-        """Create all tables. Temporary until migrations replace it (AUDIT C8)."""
-        create_tables()
-        print("Database created!")
-
-    if app.config["SCRYAPI_ENABLE_SCHEDULER"]:
-        schedule_job(app)
+    app.cli.add_command(sync_cards_command)
+    app.cli.add_command(run_scheduler_command)
 
     return app

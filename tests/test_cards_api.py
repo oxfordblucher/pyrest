@@ -1,9 +1,4 @@
-"""Request-level tests for /api/cards.
-
-Tests marked `xfail(strict=True)` describe the *target* behaviour from docs/AUDIT.md.
-They currently fail; when the referenced AUDIT item is fixed they start passing, strict
-mode turns that into a failure, and the fixing PR must remove the marker.
-"""
+"""Request-level tests for /api/cards (docs/TDD.md §9)."""
 
 import pytest
 
@@ -17,25 +12,39 @@ def names(resp):
 
 
 def test_list_cards_defaults(client):
-    resp = client.get("/api/cards/")
+    resp = client.get("/api/cards")
     body = resp.get_json()
     assert resp.status_code == 200
-    assert body["page"] == 1
-    assert body["limit"] == 20
+    assert (body["page"], body["limit"], body["total"]) == (1, 20, SAMPLE_SIZE)
     assert len(body["results"]) == 20
     assert names(resp) == sorted(names(resp))
 
 
+def test_trailing_slash_is_accepted(client):
+    assert client.get("/api/cards/").status_code == 200
+
+
 def test_list_cards_second_page(client):
-    resp = client.get("/api/cards/?page=2&limit=20")
+    resp = client.get("/api/cards?page=2&limit=20")
     assert resp.status_code == 200
     assert len(resp.get_json()["results"]) == SAMPLE_SIZE - 20
 
 
-def test_limit_is_capped_at_50(client):
-    resp = client.get("/api/cards/?limit=45")
-    assert resp.get_json()["limit"] == 45
-    assert len(resp.get_json()["results"]) == SAMPLE_SIZE
+def test_page_past_the_end_is_empty(client):
+    body = client.get("/api/cards?page=99").get_json()
+    assert body["results"] == []
+    assert body["total"] == SAMPLE_SIZE
+
+
+def test_card_shape(client):
+    card = client.get("/api/cards", query_string={"name": "Tarmogoyf"}).get_json()["results"][0]
+    assert set(card) == {
+        "id", "name", "mana_cost", "cmc", "type_line", "oracle_text", "power", "toughness",
+        "loyalty", "colors", "color_identity", "layout", "card_faces", "image_uri",
+        "scryfall_uri",
+    }  # fmt: skip
+    assert (card["power"], card["toughness"]) == ("*", "1+*")
+    assert len(card["id"]) == 36  # Scryfall UUID, not the internal integer id
 
 
 @pytest.mark.parametrize(
@@ -47,57 +56,92 @@ def test_limit_is_capped_at_50(client):
     ],
 )
 def test_substring_filters(client, query, expected):
-    resp = client.get(f"/api/cards/?{query}")
+    resp = client.get(f"/api/cards?{query}")
     assert resp.status_code == 200
     assert names(resp) == expected
 
 
 def test_full_text_search(client):
-    resp = client.get("/api/cards/?text=search your library")
+    resp = client.get("/api/cards?text=search your library")
     assert resp.status_code == 200
     assert "Demonic Tutor" in names(resp)
 
 
+def test_full_text_search_stems(client):
+    # "countered" in the query matches "can't be countered" and "counter target spell".
+    assert {"Carnage Tyrant", "Counterspell"} <= set(names(client.get("/api/cards?text=counter")))
+
+
 def test_filters_combine(client):
-    resp = client.get("/api/cards/?text=countered&type=dinosaur")
+    resp = client.get("/api/cards?text=countered&type=dinosaur")
     assert names(resp) == ["Carnage Tyrant"]
 
 
+def test_total_reflects_filters(client):
+    assert client.get("/api/cards?type=sorcery&limit=1").get_json()["total"] == 2
+
+
 def test_get_card_by_id(client):
-    first = client.get("/api/cards/?limit=1").get_json()["results"][0]
+    first = client.get("/api/cards?limit=1").get_json()["results"][0]
     resp = client.get(f"/api/cards/{first['id']}")
     assert resp.status_code == 200
-    assert resp.get_json()["name"] == first["name"]
+    assert resp.get_json() == first
 
 
 def test_get_card_by_id_not_found(client):
-    assert client.get("/api/cards/999999").status_code == 404
+    resp = client.get("/api/cards/00000000-0000-0000-0000-000000000000")
+    assert resp.status_code == 404
+    assert resp.get_json()["error"] == "not_found"
 
 
-# --- Target behaviour (see docs/AUDIT.md) -------------------------------------------
-
-
-@pytest.mark.xfail(strict=True, reason="AUDIT C6: invalid pagination is silently defaulted")
-@pytest.mark.parametrize("query", ["page=0", "limit=0", "limit=51", "page=two", "limit=-45"])
-def test_invalid_pagination_returns_400(client, query):
-    resp = client.get(f"/api/cards/?{query}")
+@pytest.mark.parametrize(
+    "query,field",
+    [
+        ("page=0", "page"),
+        ("limit=0", "limit"),
+        ("limit=51", "limit"),
+        ("page=two", "page"),
+        ("limit=-45", "limit"),
+        ("name=" + "x" * 101, "name"),
+        ("text=" + "x" * 101, "text"),
+    ],
+)
+def test_invalid_query_returns_400(client, query, field):
+    resp = client.get(f"/api/cards?{query}")
+    body = resp.get_json()
     assert resp.status_code == 400
-    assert resp.get_json()["error"] == "validation_error"
+    assert body["error"] == "validation_error"
+    assert [d["field"] for d in body["details"]] == [field]
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT C7: raw user input reaches FTS5 MATCH")
-@pytest.mark.parametrize("text", ['"', "AND", "foo(", "*"])
+def test_all_validation_errors_reported_together(client):
+    body = client.get("/api/cards?page=two&limit=0").get_json()
+    assert {d["field"] for d in body["details"]} == {"page", "limit"}
+
+
+@pytest.mark.parametrize("text", ['"', "AND", "foo(", "*", "NEAR(a b)", "col:x", "^", "ñ€😀"])
 def test_malformed_search_text_never_errors(client, text):
-    assert client.get("/api/cards/", query_string={"text": text}).status_code == 200
+    assert client.get("/api/cards", query_string={"text": text}).status_code == 200
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT E3: multi-face cards import with NULL text")
-def test_multi_face_cards_are_searchable(client):
-    resp = client.get("/api/cards/?text=transform")
-    assert "Delver of Secrets // Insectile Aberration" in names(resp)
+def test_blank_search_text_is_ignored(client):
+    assert client.get("/api/cards?text=%20%20").get_json()["total"] == SAMPLE_SIZE
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT S6: LIKE wildcards in filters are not escaped")
-def test_like_wildcards_are_literal(client):
-    resp = client.get("/api/cards/", query_string={"name": "%"})
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("transform", "Delver of Secrets // Insectile Aberration"),  # transform front face
+        ("Tibalt", "Valki, God of Lies // Tibalt, Cosmic Impostor"),  # MDFC back face
+        ("damage can't be prevented", "Bonecrusher Giant // Stomp"),  # adventure face text
+        ("draw a card", "Fire // Ice"),  # split card second half
+    ],
+)
+def test_multi_face_cards_are_searchable(client, text, expected):
+    assert expected in names(client.get("/api/cards", query_string={"text": text}))
+
+
+@pytest.mark.parametrize("value", ["%", "_", "\\"])
+def test_like_wildcards_are_literal(client, value):
+    resp = client.get("/api/cards", query_string={"name": value})
     assert names(resp) == []

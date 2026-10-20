@@ -19,10 +19,9 @@ def test_get_config_rejects_unknown_env():
         get_config("staging")
 
 
-def test_test_config_uses_in_memory_db_and_no_scheduler():
+def test_test_config_uses_in_memory_db():
     app = create_app(TestConfig)
     assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
-    assert app.config["SCRYAPI_ENABLE_SCHEDULER"] is False
     assert app.testing
 
 

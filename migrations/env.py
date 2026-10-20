@@ -16,20 +16,11 @@ logger = logging.getLogger('alembic.env')
 
 
 def get_engine():
-    try:
-        # this works with Flask-SQLAlchemy<3 and Alchemical
-        return current_app.extensions['migrate'].db.get_engine()
-    except (TypeError, AttributeError):
-        # this works with Flask-SQLAlchemy>=3
-        return current_app.extensions['migrate'].db.engine
+    return current_app.extensions['migrate'].db.engine
 
 
 def get_engine_url():
-    try:
-        return get_engine().url.render_as_string(hide_password=False).replace(
-            '%', '%%')
-    except AttributeError:
-        return str(get_engine().url).replace('%', '%%')
+    return get_engine().url.render_as_string(hide_password=False).replace('%', '%%')
 
 
 # add your model's MetaData object here
@@ -72,11 +63,19 @@ def run_migrations_offline():
         context.run_migrations()
 
 
-EXCLUDED_TABLES = {'cards_fts'}
+# Search objects are dialect-specific and managed by hand in migrations (see
+# scryapi/search); autogenerate must never try to create, alter or drop them.
+EXCLUDED_INDEXES = {
+    'ix_cards_search_vector', 'ix_cards_name_trgm', 'ix_cards_type_line_trgm'
+}
 
 
 def include_object(object, name, type_, reflected, compare_to):
-    if type_ == "table" and name in EXCLUDED_TABLES:
+    if type_ == "table" and name.startswith("cards_fts"):
+        return False
+    if type_ == "column" and name == "search_vector":
+        return False
+    if type_ == "index" and name in EXCLUDED_INDEXES:
         return False
     return True
 

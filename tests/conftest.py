@@ -2,11 +2,12 @@ from pathlib import Path
 
 import pytest
 import responses
+from flask_migrate import upgrade
 
-from scryapi import create_app, create_tables
+from scryapi import create_app
 from scryapi.config import TestConfig
 from scryapi.extensions import db as _db
-from scryapi.helpers.populate import import_cards
+from scryapi.sync.importer import import_cards, iter_cards
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CARDS_SAMPLE = FIXTURES / "cards_sample.json"
@@ -20,10 +21,13 @@ def no_network():
 
 
 @pytest.fixture
-def app():
-    app = create_app(TestConfig)
+def app(tmp_path):
+    class Config(TestConfig):
+        SCRYAPI_DATA_DIR = str(tmp_path / "data")
+
+    app = create_app(Config)
     with app.app_context():
-        create_tables()
+        upgrade()
         yield app
         _db.session.remove()
         _db.engine.dispose()
@@ -42,4 +46,5 @@ def client(app):
 @pytest.fixture
 def cards(db):
     """Load the sample Scryfall cards through the real importer."""
-    import_cards(CARDS_SAMPLE)
+    import_cards(iter_cards(CARDS_SAMPLE))
+    db.session.commit()
