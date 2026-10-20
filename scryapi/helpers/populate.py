@@ -14,9 +14,10 @@ def sync_fts():
     db.session.commit()
 
 
-def import_cards():
-    json_path = Path(__file__).resolve().parent.parent / "data" / "card_data.json"
+DEFAULT_JSON_PATH = Path(__file__).resolve().parent.parent / "data" / "card_data.json"
 
+
+def import_cards(json_path=DEFAULT_JSON_PATH):
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
