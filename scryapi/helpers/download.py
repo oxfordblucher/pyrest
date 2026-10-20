@@ -3,7 +3,6 @@ import requests
 import json
 
 dl_folder = Path(__file__).resolve().parent.parent / "data"
-dl_folder.mkdir(exist_ok=True)
 dl_file_path = dl_folder / "card_data.json"
 
 
@@ -24,6 +23,7 @@ def download():
     dl_link = get_link()
     if dl_link:
         try:
+            dl_folder.mkdir(exist_ok=True)
             res = requests.get(dl_link, stream=True)
             res.raise_for_status()
 
