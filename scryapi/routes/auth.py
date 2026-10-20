@@ -1,8 +1,9 @@
-from flask import Blueprint, session
+from flask import Blueprint, current_app, session
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_wtf.csrf import generate_csrf
 
 from scryapi.errors import ApiError
+from scryapi.extensions import limiter
 from scryapi.schemas import json_body
 from scryapi.schemas.user import dump_me, parse_login, parse_registration
 from scryapi.services import users as user_service
@@ -10,6 +11,11 @@ from scryapi.services import users as user_service
 authbp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 CSRF_HEADER = "X-CSRFToken"
+
+# Shared bucket: credential stuffing across login and register counts together.
+auth_limit = limiter.shared_limit(
+    lambda: current_app.config["SCRYAPI_RATELIMIT_AUTH"], scope="auth"
+)
 
 
 def _start_session(user, remember=False):
@@ -30,12 +36,14 @@ def get_csrf_token():
 
 
 @authbp.post("/register")
+@auth_limit
 def register():
     user = user_service.register(parse_registration(json_body()))
     return dump_me(user), 201, _start_session(user)
 
 
 @authbp.post("/login")
+@auth_limit
 def login():
     credentials = parse_login(json_body())
     user = user_service.authenticate(credentials)

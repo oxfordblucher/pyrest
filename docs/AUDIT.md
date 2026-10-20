@@ -463,11 +463,11 @@ module imports it.
 
 ## M4 — Hardening (human finishing pass recommended)
 
-### [ ] S7 (part 2) · Rate limiting
+### [x] S7 (part 2) · Rate limiting
 Flask-Limiter on `/api/cards` (e.g. 60/min/IP) and `/api/auth/*` (e.g. 10/min/IP);
 storage backend Redis in prod, memory in dev.
 
-### [ ] Q7 (part 2) · CI
+### [x] Q7 (part 2) · CI
 GitHub Actions: ruff, pytest with coverage; matrix SQLite + Postgres 16 service
 container; fail under 85% line coverage on `scryapi/`.
 
@@ -475,11 +475,63 @@ container; fail under 85% line coverage on `scryapi/`.
 Type hints on public functions; optional `mypy --strict` on `scryapi/sync` and
 `scryapi/search`.
 
-### [ ] Q5 · Dead code sweep
+### [x] Q5 · Dead code sweep
 Remove any remaining: `data_access/deck_access.py` (imports only),
 `sanitation/error_handler.py` (commented out), dummy `my_fix` fixture,
 `if __name__ == '__main__'` in `helpers/create.py`, commented code in `scheduler.py`.
 Most of these disappear naturally in M0–M3; this item is the final check.
+
+### M4 completion notes
+
+- **Rate limits:** `/api/cards*` is limited to `SCRYAPI_RATELIMIT_SEARCH` (60/minute).
+  `/api/auth/login` and `/register` share one `SCRYAPI_RATELIMIT_AUTH` bucket
+  (10/minute). Responses carry `X-RateLimit-*` and `Retry-After` headers.
+  `SCRYAPI_PROXY_COUNT` turns on `ProxyFix` so limits key on the real client IP. The
+  storage default is `memory://`, which counts per worker. **Production needs
+  `RATELIMIT_STORAGE_URI=redis://…`** (a human decision that depends on hosting).
+  `RATELIMIT_SWALLOW_ERRORS` is on in prod, so a store outage doesn't take the API down.
+- **CI:** `.github/workflows/ci.yml` runs ruff, plus pytest with
+  `--cov-fail-under=85` on Python 3.12/3.14 × SQLite/Postgres 17. Locally the suite
+  passes on SQLite and on Postgres 17 (Homebrew, 2026-10-20) with 96.6% coverage. The
+  workflow hasn't run on GitHub yet because the repo has no remote.
+- **Postgres verified:** a real Scryfall sync of 36,509 cards took 12.9 s with 169 MB
+  peak RSS. `EXPLAIN` shows `ix_cards_name_trgm` serving `ILIKE` and
+  `ix_cards_search_vector` serving full-text search. Typical queries take 2–11 ms.
+  Deep `OFFSET` pages take about 90 ms.
+- **Extra hardening, not in the original audit:** `MAX_CONTENT_LENGTH` of 256 KB (413
+  JSON error), `X-Content-Type-Options: nosniff` and `Cache-Control: no-store` on every
+  response, and a remember-me cookie that lasts 30 days instead of Flask-Login's
+  default of a year.
+- **Q5:** `vulture` found no dead code (every hit was a framework-registered callback).
+- **Q8 part 2 (typing)** is left for the human pass. It's optional and doesn't affect
+  behaviour.
+
+---
+
+## Hand-off: decisions and work for the human pass
+
+Everything above is implemented and tested. These items need an owner's decision or
+access the agents don't have:
+
+1. **Hosting (PRD open Q4).** Pick a platform, then configure `DATABASE_URL`,
+   `SECRET_KEY`, `RATELIMIT_STORAGE_URI` (Redis), `SCRYAPI_PROXY_COUNT` and a persistent
+   `SCRYAPI_DATA_DIR`. Run `flask db upgrade` as a release step and schedule
+   `flask sync-cards` weekly.
+2. **Frontend origin (PRD open Q1).** Cookies are `SameSite=Lax` and there's no CORS
+   config, which assumes a same-origin frontend. A cross-origin client needs CORS with
+   credentials and `SameSite=None; Secure`, or a move to tokens (TDD §13).
+3. **Password policy / reset / email verification (PRD open Q2).** The current rule is
+   12–128 characters, with no reset flow.
+4. **Deck format validation (PRD open Q3)** isn't implemented. `format` is free text.
+5. **Collation:** Postgres sorts names with the database's locale (`"_____"` first on
+   `en_US.UTF-8`), while SQLite sorts bytewise. To make them identical, pin
+   `COLLATE "C"` on `ORDER BY name`.
+6. **Deep pagination:** `OFFSET` gets slower towards the end of the catalogue (about
+   90 ms at page 1500). Consider keyset pagination if clients really page that far.
+7. **Push and CI:** add a GitHub remote, push the branch, and confirm the CI matrix is
+   green.
+8. **Optional:** type hints and mypy (Q8 part 2), and a review of the API docs for
+   public consumers.
 
 ---
 

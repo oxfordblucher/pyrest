@@ -1,10 +1,12 @@
-from flask import Blueprint, request
+from flask import Blueprint, current_app, request
 
+from scryapi.extensions import limiter
 from scryapi.schemas import paginated
 from scryapi.schemas.card import dump_card, parse_card_query
 from scryapi.services import cards as card_service
 
 cardsbp = Blueprint("cards", __name__, url_prefix="/api/cards")
+limiter.limit(lambda: current_app.config["SCRYAPI_RATELIMIT_SEARCH"])(cardsbp)
 
 
 @cardsbp.get("")

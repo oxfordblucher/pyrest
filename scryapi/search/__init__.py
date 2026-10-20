@@ -20,3 +20,19 @@ def get_backend(dialect_name=None):
         return _BACKENDS[dialect_name]()
     except KeyError:
         raise RuntimeError(f"No search backend for database dialect {dialect_name!r}") from None
+
+
+# Search objects are dialect-specific and written by hand in migrations; Alembic
+# autogenerate must never try to create, alter or drop them.
+SEARCH_INDEXES = frozenset(
+    {"ix_cards_search_vector", "ix_cards_name_trgm", "ix_cards_type_line_trgm"}
+)
+
+
+def include_in_autogenerate(object, name, type_, reflected, compare_to):
+    """Alembic `include_object` hook; used by migrations/env.py and the migration tests."""
+    if type_ == "table" and name.startswith("cards_fts"):
+        return False
+    if type_ == "column" and name == "search_vector":
+        return False
+    return not (type_ == "index" and name in SEARCH_INDEXES)

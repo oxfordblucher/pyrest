@@ -221,7 +221,11 @@ flask sync-cards [--file PATH] [--force]
 | `SESSION_COOKIE_SAMESITE` | Lax | Lax | Lax (see PRD open Q1) |
 | `REMEMBER_COOKIE_*` | mirror the session settings | | |
 | `WTF_CSRF_ENABLED` | True | True (tests fetch a token) | True |
-| `RATELIMIT_STORAGE_URI` | memory:// | memory:// (or disabled) | redis:// |
+| `RATELIMIT_STORAGE_URI` | memory:// | memory:// (disabled except in rate-limit tests) | redis:// |
+| `SCRYAPI_RATELIMIT_SEARCH` / `_AUTH` | 60/minute, 10/minute | same | tune per traffic |
+| `SCRYAPI_PROXY_COUNT` | 0 | 0 | number of trusted proxies (enables `ProxyFix`) |
+| `MAX_CONTENT_LENGTH` | 256 KB | 256 KB | 256 KB |
+| `TEST_DATABASE_URL` | – | unset → in-memory SQLite; Postgres URL in CI | – |
 | `SCRYAPI_DATA_DIR` | `<instance>/data` | tmp dir | volume path |
 
 `create_app(config: type[BaseConfig] | None = None)` selects a config from

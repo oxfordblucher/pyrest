@@ -1,6 +1,6 @@
 # PRD — scryapi
 
-- **Status:** Draft v0.1 (2026-10-20). Derived from the existing code and owner decisions; items marked **[OPEN]** need the owner's input.
+- **Status:** v0.2 (2026-10-20). M0–M4 are implemented. Items marked **[OPEN]** need the owner's input. See the hand-off list in [AUDIT](AUDIT.md).
 - **Owner:** Hiu Chan
 - **Companion docs:** [TDD](TDD.md) · [AUDIT](AUDIT.md)
 

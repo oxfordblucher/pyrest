@@ -5,6 +5,8 @@ from flask import current_app
 
 from alembic import context
 
+from scryapi.search import include_in_autogenerate
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -63,23 +65,6 @@ def run_migrations_offline():
         context.run_migrations()
 
 
-# Search objects are dialect-specific and managed by hand in migrations (see
-# scryapi/search); autogenerate must never try to create, alter or drop them.
-EXCLUDED_INDEXES = {
-    'ix_cards_search_vector', 'ix_cards_name_trgm', 'ix_cards_type_line_trgm'
-}
-
-
-def include_object(object, name, type_, reflected, compare_to):
-    if type_ == "table" and name.startswith("cards_fts"):
-        return False
-    if type_ == "column" and name == "search_vector":
-        return False
-    if type_ == "index" and name in EXCLUDED_INDEXES:
-        return False
-    return True
-
-
 def run_migrations_online():
     """Run migrations in 'online' mode.
 
@@ -108,7 +93,7 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
-            include_object=include_object,
+            include_object=include_in_autogenerate,
             **conf_args
         )
 

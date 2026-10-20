@@ -38,3 +38,15 @@ def test_unhandled_exception_is_json_500_without_details(exploding_client):
     assert body["error"] == "internal_error"
     assert "secret" not in resp.get_data(as_text=True)
     assert "Traceback" not in resp.get_data(as_text=True)
+
+
+def test_oversized_body_is_413(client):
+    resp = client.post("/api/auth/login", data="x" * (300 * 1024), content_type="application/json")
+    assert resp.status_code == 413
+    assert resp.get_json()["error"] == "payload_too_large"
+
+
+def test_security_headers(client):
+    resp = client.get("/api/cards")
+    assert resp.headers["X-Content-Type-Options"] == "nosniff"
+    assert resp.headers["Cache-Control"] == "no-store"

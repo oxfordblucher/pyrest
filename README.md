@@ -7,8 +7,9 @@ so search is fast and doesn't depend on Scryfall at request time.
 > Card data © Wizards of the Coast, provided by [Scryfall](https://scryfall.com). This
 > project is not affiliated with or endorsed by either.
 
-**Status:** early development. The card search API works. Users and decks are still
-stubs. See [docs/AUDIT.md](docs/AUDIT.md) for the roadmap of fixes.
+**Status:** feature-complete for v1 (card search, accounts, decks, public sharing) and
+tested on SQLite and Postgres. Before the first deployment, see the hand-off list at the
+end of [docs/AUDIT.md](docs/AUDIT.md).
 
 ## Docs
 
@@ -37,6 +38,10 @@ Settings come from environment variables. A `.env` file is loaded automatically 
 | `DATABASE_URL` | `sqlite:///dev.sqlite3` (in `instance/`) | required in production (Postgres) |
 | `SECRET_KEY` | dev placeholder | required in production, ≥ 32 chars |
 | `SCRYAPI_DATA_DIR` | `instance/data` | where the downloaded bulk file is kept |
+| `RATELIMIT_STORAGE_URI` | `memory://` | use `redis://...` in production (memory counts per worker) |
+| `SCRYAPI_RATELIMIT_SEARCH` | `60/minute` | per client IP, `/api/cards*` |
+| `SCRYAPI_RATELIMIT_AUTH` | `10/minute` | per client IP, login and register combined |
+| `SCRYAPI_PROXY_COUNT` | `0` | trusted reverse proxies in front of the app |
 
 ## Running
 
@@ -56,22 +61,39 @@ process.
 
 Production: `gunicorn 'scryapi:create_app()'`, with `flask db upgrade` as a release step.
 
-## API (current)
+## API
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/cards` | `name`, `type` (substring), `text` (full-text over rules text), `page` ≥ 1, `limit` 1–50 |
-| GET | `/api/cards/<scryfall_id>` | |
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/cards` | | `name`, `type` (substring), `text` (full-text over rules text), `page` ≥ 1, `limit` 1–50 |
+| GET | `/api/cards/<scryfall_id>` | | |
+| GET | `/api/auth/csrf` | | returns `{csrf_token}`; send it as `X-CSRFToken` on every POST/PUT/PATCH/DELETE |
+| POST | `/api/auth/register` | | `{username, email, password}` |
+| POST | `/api/auth/login` | | `{login, password, remember?}`; the response's `X-CSRFToken` header is the new token |
+| POST | `/api/auth/logout` | | |
+| GET | `/api/auth/me` | ✓ | |
+| GET | `/api/users/<username>` | | public profile |
+| GET | `/api/users/<username>/decks` | | that user's public decks |
+| GET | `/api/decks/public` | | all public decks, most recently updated first |
+| GET | `/api/decks/mine` | ✓ | |
+| POST | `/api/decks` | ✓ | `{name, description?, format?, is_public?}` |
+| GET / PATCH / DELETE | `/api/decks/<id>` | owner (GET: or public) | |
+| PUT | `/api/decks/<id>/cards` | owner | `{cards: [{card_id, quantity, board?}]}` replaces the list |
 
-All errors are JSON: `{"error": "<code>", "message": "...", "details": [...]}`.
-The full v1 API is specified in [TDD §9](docs/TDD.md#9-api-contract-v1).
+Auth uses session cookies. All errors are JSON:
+`{"error": "<code>", "message": "...", "details": [...]}`. The full contract is in
+[TDD §9](docs/TDD.md#9-api-contract-v1).
 
 ## Development
 
 ```sh
-pytest                                # no network access; HTTP calls must be mocked
+pytest                                # SQLite, no network access; HTTP calls must be mocked
+TEST_DATABASE_URL=postgresql+psycopg://user@localhost/scryapi_test pytest   # Postgres
 ruff check . && ruff format --check . # lint and format
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint, plus tests on Python 3.12/3.14 × SQLite/Postgres
+with an 85% coverage floor.
 
 Tests marked `xfail(strict=True)` describe target behaviour from the audit. When you
 fix the referenced item, remove the marker.

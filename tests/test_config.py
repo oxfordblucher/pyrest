@@ -19,10 +19,15 @@ def test_get_config_rejects_unknown_env():
         get_config("staging")
 
 
-def test_test_config_uses_in_memory_db():
-    app = create_app(TestConfig)
-    assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
-    assert app.testing
+def test_test_config_is_testing():
+    assert create_app(TestConfig).testing
+
+
+def test_postgres_url_scheme_is_normalised(monkeypatch):
+    from scryapi.config import _database_url
+
+    monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host/db")
+    assert _database_url() == "postgresql://u:p@host/db"
 
 
 @pytest.mark.parametrize(

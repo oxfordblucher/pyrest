@@ -22,9 +22,16 @@ def no_network():
 
 
 @pytest.fixture
-def app(tmp_path):
-    class Config(TestConfig):
-        SCRYAPI_DATA_DIR = str(tmp_path / "data")
+def config_overrides():
+    """Override in a test module to change config for its `app` fixture."""
+    return {}
+
+
+@pytest.fixture
+def app(tmp_path, config_overrides):
+    Config = type(
+        "Config", (TestConfig,), {"SCRYAPI_DATA_DIR": str(tmp_path / "data"), **config_overrides}
+    )
 
     app = create_app(Config)
 
@@ -41,6 +48,10 @@ def app(tmp_path):
         upgrade()
         yield app
         _db.session.remove()
+        if _db.engine.dialect.name == "postgresql":
+            # Unlike in-memory SQLite, the database outlives the test: start clean.
+            with _db.engine.begin() as conn:
+                conn.exec_driver_sql("DROP SCHEMA public CASCADE; CREATE SCHEMA public")
         _db.engine.dispose()
 
 
