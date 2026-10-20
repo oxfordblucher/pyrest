@@ -493,7 +493,7 @@ Most of these disappear naturally in M0–M3; this item is the final check.
 - **CI:** `.github/workflows/ci.yml` runs ruff, plus pytest with
   `--cov-fail-under=85` on Python 3.12/3.14 × SQLite/Postgres 17. Locally the suite
   passes on SQLite and on Postgres 17 (Homebrew, 2026-10-20) with 96.6% coverage. The
-  workflow hasn't run on GitHub yet because the repo has no remote.
+  workflow hasn't run on GitHub yet because the branch hasn't been pushed.
 - **Postgres verified:** a real Scryfall sync of 36,509 cards took 12.9 s with 169 MB
   peak RSS. `EXPLAIN` shows `ix_cards_name_trgm` serving `ILIKE` and
   `ix_cards_search_vector` serving full-text search. Typical queries take 2–11 ms.
@@ -528,8 +528,8 @@ access the agents don't have:
    `COLLATE "C"` on `ORDER BY name`.
 6. **Deep pagination:** `OFFSET` gets slower towards the end of the catalogue (about
    90 ms at page 1500). Consider keyset pagination if clients really page that far.
-7. **Push and CI:** add a GitHub remote, push the branch, and confirm the CI matrix is
-   green.
+7. **Push and CI:** push `m0-foundation` to `origin`, open a PR, and confirm the CI
+   matrix is green.
 8. **Optional:** type hints and mypy (Q8 part 2), and a review of the API docs for
    public consumers.
 
