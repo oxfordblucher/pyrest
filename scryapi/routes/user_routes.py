@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
-from extensions import db
-from models import User
+from scryapi.extensions import db
+from scryapi.models import User
 
 usersbp = Blueprint('users', __name__, url_prefix='/api/users')
 

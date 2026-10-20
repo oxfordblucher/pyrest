@@ -1,7 +1,7 @@
-from extensions import db
-from models import Card
+from scryapi.extensions import db
+from scryapi.models import Card
 from flask import request
-from sanitation.req_sani import PageSanitizer
+from scryapi.sanitation.req_sani import PageSanitizer
 
 FILTER_MAP = {
     "name": lambda v: Card.name.ilike(f"%{v}%"),

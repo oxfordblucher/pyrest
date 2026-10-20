@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
-from extensions import db
-from models.card import Card
-from data_access.card_access import get_card_data
+from scryapi.extensions import db
+from scryapi.models.card import Card
+from scryapi.data_access.card_access import get_card_data
 
 cardsbp = Blueprint('cards', __name__, url_prefix='/api/cards')
 

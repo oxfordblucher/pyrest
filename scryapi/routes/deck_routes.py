@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
-from extensions import db
-from models.deck import Deck
+from scryapi.extensions import db
+from scryapi.models.deck import Deck
 
 decksbp = Blueprint('decks', __name__, url_prefix='/api/decks')
 

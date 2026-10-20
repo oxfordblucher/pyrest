@@ -1,9 +1,9 @@
-from extensions import db
+from scryapi.extensions import db
 from pathlib import Path
 from sqlalchemy.dialects.sqlite import insert
 
 import json
-from models import Card
+from scryapi.models import Card
 
 
 def sync_fts():

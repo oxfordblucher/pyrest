@@ -1,4 +1,4 @@
-from extensions import db
+from scryapi.extensions import db
 from sqlalchemy import event, DDL
 
 class Card(db.Model):

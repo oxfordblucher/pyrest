@@ -1,4 +1,4 @@
-from extensions import db
+from scryapi.extensions import db
 
 class User(db.Model):
     __tablename__ = "users"

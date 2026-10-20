@@ -1,5 +1,5 @@
 import pytest
-from sanitation.req_sani import PageSanitizer
+from scryapi.sanitation.req_sani import PageSanitizer
 
 
 class MockRequestObj:

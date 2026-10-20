@@ -1,4 +1,4 @@
-from extensions import db
+from scryapi.extensions import db
 
 class Deck(db.Model):
     __tablename__ = "decks"

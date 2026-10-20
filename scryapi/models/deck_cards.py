@@ -1,4 +1,4 @@
-from extensions import db
+from scryapi.extensions import db
 
 Deck_Cards = db.Table(
     "deck_cards",
