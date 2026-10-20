@@ -1,14 +1,18 @@
 from flask import Flask
 
 from scryapi import models  # noqa: F401  (registers models on db.metadata)
+from scryapi.config import get_config
 from scryapi.extensions import db
 from scryapi.helpers.scheduler import schedule_job
 from scryapi.routes import cardsbp, decksbp, usersbp
 
 
-def create_app():
+def create_app(config=None):
+    config = config or get_config()
+    config.validate()
+
     app = Flask(__name__)
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///db.sqlite3"
+    app.config.from_object(config)
 
     app.register_blueprint(cardsbp)
     app.register_blueprint(decksbp)
@@ -22,6 +26,7 @@ def create_app():
         db.create_all()
         print("Database created!")
 
-    schedule_job(app)
+    if app.config["SCRYAPI_ENABLE_SCHEDULER"]:
+        schedule_job(app)
 
     return app
