@@ -65,7 +65,7 @@ correctness/efficiency · **P3** quality/hygiene.
 
 ## M0 — Foundation
 
-### [ ] Q1 · P3 · Make `scryapi` a real package
+### [x] Q1 · P3 · Make `scryapi` a real package
 **Where:** all modules — e.g. `scryapi/app.py:1`, `scryapi/helpers/create.py:2-5`,
 `scryapi/routes/card_routes.py:2-4`.
 **Problem:** Imports are top-level (`from extensions import db`, `from models import *`)
@@ -86,7 +86,7 @@ what is actually used.
 - `flask --app scryapi routes` lists all routes from the repo root.
 - `grep -rn "import \*" scryapi/` returns nothing.
 
-### [ ] Q3 · P3 · Complete the dependency manifest
+### [x] Q3 · P3 · Complete the dependency manifest
 **Where:** `requirements.txt`.
 **Problem:** Missing pytest, Flask-Migrate/Alembic (required by `migrations/env.py`),
 a production WSGI server, and the Postgres driver. No dev/prod separation.
@@ -97,8 +97,10 @@ CSRF, requests, APScheduler, ijson, psycopg[binary], gunicorn) and
 requests-mock). Either delete `requirements.txt` or generate it from a lock tool.
 **Acceptance:** fresh venv + `pip install -e ".[dev]"` is sufficient to run the app,
 the tests, and `flask db upgrade`.
+**Done note:** Flask-Login, Flask-WTF, ijson and psycopg are *not* added yet. Add each in
+the milestone that first uses it (M1: ijson, psycopg; M2: Flask-Login, Flask-WTF).
 
-### [ ] Q6 · P3 · Repo hygiene
+### [x] Q6 · P3 · Repo hygiene
 **Where:** `.DS_Store`, `scryapi/.DS_Store`, `.gitignore`, `scryapi/helpers/download.py:5-7`.
 **Problem:** macOS metadata committed; `.gitignore` does not cover `*.sqlite3`,
 `.venv/`, `.pytest_cache/`, `.DS_Store`, `.env`, `*.egg-info`; `download.py` creates a
@@ -108,7 +110,7 @@ the download function.
 **Acceptance:** `git ls-files | grep -i ds_store` is empty; importing
 `scryapi.sync.download` (new location) touches no filesystem.
 
-### [ ] S3 · P1 · Environment-based configuration
+### [x] S3 · P1 · Environment-based configuration
 **Where:** `scryapi/helpers/create.py:12`.
 **Problem:** DB URI is hardcoded to SQLite, there is no `SECRET_KEY` (needed for session
 auth in M2), and no distinction between dev / test / prod.
@@ -119,7 +121,7 @@ refuses to start without `SECRET_KEY` and `DATABASE_URL`. Support `.env` via
 **Acceptance:** test suite uses in-memory SQLite via `TestConfig`; starting with
 `FLASK_ENV`/`SCRYAPI_ENV=production` and no `SECRET_KEY` raises a clear error.
 
-### [ ] Q7 (part 1) · P3 · Test harness
+### [x] Q7 (part 1) · P3 · Test harness
 **Where:** `scryapi/tests/conftest.py`, `scryapi/tests/test_sanitation/`.
 **Problem:** The only fixture is a placeholder returning `"3"`; tests use a hand-rolled
 mock request; no app/client fixture; no DB fixture.
@@ -130,7 +132,7 @@ objects incl. a double-faced card, a split card, and a `*`-power creature).
 **Acceptance:** `pytest` passes from repo root with no network; existing sanitizer cases
 are ported to request-level tests against `/api/cards`.
 
-### [ ] Q8 (part 1) · P3 · README + lint config
+### [x] Q8 (part 1) · P3 · README + lint config
 **Fix:** `README.md` (what it is, setup, run, test, sync data); `ruff` config in
 `pyproject.toml` (lint + format, line length 100). Run `ruff format` once in its own PR.
 **Acceptance:** `ruff check . && ruff format --check .` pass.
@@ -156,6 +158,9 @@ downloads ~150 MB and imports it when the file is missing or > 7 days old. Conse
 - Scheduler is opt-in (`SCRYAPI_ENABLE_SCHEDULER=1`), started once from a dedicated
   entrypoint (or run sync as an external cron / container job — preferred for prod).
 - App factory must have no network or heavy I/O side effects.
+**M0 state:** the scheduler is already gated by `SCRYAPI_ENABLE_SCHEDULER` (off in
+test/prod, **on by default in `DevConfig`** because it is currently the only way to load
+data). As part of C5, flip the `DevConfig` default to off once `flask sync-cards` exists.
 **Acceptance:** `create_app(TestConfig)` performs no HTTP calls (assert with
 `responses`/`requests-mock` in strict mode); `flask sync-cards` against the fixture file
 (`--file tests/fixtures/cards_sample.json`) populates the DB.
@@ -219,6 +224,11 @@ SQLite silently accepts this; Postgres rejects it and the import fails.
 - Remove the module-level `cards_fts` Table and the `after_create` listener.
 **Acceptance:** `GET /api/cards?text=%22` and `?text=AND` return 200 (empty or matching
 results) — never 500; `db.metadata.tables` contains no `cards_fts`.
+**Found during M0:** this also made `db.create_all()` crash on every fresh database
+("table cards_fts already exists"), because the `after_create` hook creates the virtual
+table before `create_all` reaches the plain-table declaration. M0 added a stopgap
+`create_tables()` in `scryapi/__init__.py` that skips `cards_fts`. Remove it in C7/C8.
+Remove the `xfail` from `tests/test_cards_api.py::test_malformed_search_text_never_errors`.
 
 ### [ ] C8 · P0 · Replace the destructive migration
 **Where:** `scryapi/migrations/versions/9b3e823a5792_.py`, `scryapi/migrations/env.py`,
@@ -228,6 +238,9 @@ shadow tables** `cards_fts_idx/_docsize/_config/_data` and alters the virtual ta
 running it corrupts search. Flask-Migrate is commented out in the factory, so
 `migrations/env.py` (which reads `current_app.extensions['migrate']`) cannot run.
 Schema is actually created by `db.create_all()` in `bootstrap_db.py`.
+**M0 state:** `migrations/` now lives at the repo root. The stopgap
+`flask --app scryapi init-db` command and `create_tables()` in `scryapi/__init__.py`
+stand in for migrations. Delete both here.
 **Fix:** enable Flask-Migrate in the factory; delete the existing revision; generate a
 fresh baseline from the M1 models; add dialect-conditional `op.execute` for search
 objects (FTS5 virtual table on SQLite; tsvector column + GIN index + `pg_trgm` extension

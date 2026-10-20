@@ -8,20 +8,22 @@ A Flask JSON API that mirrors Scryfall Oracle card data for search, with users a
 - `docs/AUDIT.md`: the ordered fix list. Work milestone by milestone, one AUDIT ID per PR,
   and tick the box when done.
 
-## Current state (until AUDIT M0 lands)
-- The code lives in `scryapi/` with cwd-relative imports, so run commands from inside
-  `scryapi/`: `python bootstrap_db.py`, `python app.py`, `pytest`.
-- **Warning:** `create_app()` currently downloads around 150 MB from Scryfall at startup
-  (AUDIT C5). Don't run the app or the tests in a loop until that's fixed.
-- Don't run the existing migration in `scryapi/migrations/versions/`. It destroys the
-  FTS index (AUDIT C8).
-
-## Target commands (after M0/M1)
-- Install: `pip install -e ".[dev]"`
-- Test: `pytest` (from the repo root; no network allowed)
+## Commands
+- Install: `pip install -e ".[dev]"` (venv at `.venv/`)
+- Test: `pytest` from the repo root. Network is blocked by an autouse fixture, so mock
+  HTTP with `responses`.
 - Lint and format: `ruff check . && ruff format .`
-- DB: `flask --app scryapi db upgrade`
-- Load data offline: `flask --app scryapi sync-cards --file tests/fixtures/cards_sample.json`
+- Create tables (stopgap until C8): `SCRYAPI_ENABLE_SCHEDULER=0 flask --app scryapi init-db`
+- Run: `flask --app scryapi run`. **Warning:** in dev the scheduler is on by default and
+  downloads about 150 MB from Scryfall at startup (AUDIT C5). Set
+  `SCRYAPI_ENABLE_SCHEDULER=0` unless you need the data.
+- Don't run the migration in `migrations/versions/`. It destroys the FTS index (AUDIT C8).
+
+## Testing conventions
+- Fixtures in `tests/conftest.py`: `app`, `client`, `db`, and `cards` (21 real Scryfall
+  cards from `tests/fixtures/cards_sample.json`, loaded through the real importer).
+- `xfail(strict=True)` tests encode target behaviour for open AUDIT items. Fixing an item
+  makes its test pass, strict mode then fails the run, and you remove the marker.
 
 ## Rules
 - SQLite in dev/test, Postgres in prod. Dialect-specific code goes only in `search/`,
