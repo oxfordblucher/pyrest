@@ -1,6 +1,7 @@
 from .card import Card
-from .deck_cards import Deck_Cards
-from .deck import Deck
+from .deck import Deck, DeckCard
+from .notification import Notification
+from .sync_state import SyncState
 from .user import User
 
-__all__ = ["Card", "Deck_Cards", "Deck", "User"]
+__all__ = ["Card", "Deck", "DeckCard", "Notification", "SyncState", "User"]

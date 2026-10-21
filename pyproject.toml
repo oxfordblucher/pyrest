@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scryapi"
+version = "0.1.0"
+description = "JSON API mirroring Scryfall Oracle card data, with users and decks."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "Flask>=3.1,<4",
+    "Flask-SQLAlchemy>=3.1,<4",
+    "Flask-Migrate>=4.0,<5",
+    "SQLAlchemy>=2.1,<3",  # Select[T] generics (2.1 style) in type hints
+    "requests>=2.32,<3",
+    "APScheduler>=3.11,<4",
+    "python-dotenv>=1.0",
+    "gunicorn>=23",
+    "psycopg[binary]>=3.2",
+    "Flask-Login>=0.6.3,<1",
+    "Flask-WTF>=1.2,<2",
+    "Flask-Limiter>=3.8,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "responses>=0.25",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "types-requests",
+]
+
+[tool.setuptools.packages.find]
+include = ["scryapi*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = [
+    "error::DeprecationWarning:scryapi.*",
+    # Flask-Login 0.6.3 still calls datetime.utcnow() for remember cookies.
+    "ignore:datetime.datetime.utcnow:DeprecationWarning:flask_login",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+    "migrations",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["scryapi"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+# The logic-heavy layers are fully annotated; routes and app wiring stay lenient.
+[[tool.mypy.overrides]]
+module = [
+    "scryapi.formats",
+    "scryapi.models.*",
+    "scryapi.schemas.*",
+    "scryapi.search.*",
+    "scryapi.services.*",
+    "scryapi.sync.*",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
