@@ -90,15 +90,38 @@ def run_migrations_online():
     connectable = get_engine()
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=get_metadata(),
-            include_object=include_in_autogenerate,
-            **conf_args
-        )
+        sqlite = connection.dialect.name == 'sqlite'
+        if sqlite:
+            # Batch mode rebuilds a table by copy, drop and rename. With foreign keys
+            # enforced, dropping a table that other rows reference (e.g. cards, from
+            # deck_cards) fails, so enforcement is off for the run and integrity is
+            # checked once at the end instead.
+            _set_sqlite_foreign_keys(connection, False)
+        try:
+            context.configure(
+                connection=connection,
+                target_metadata=get_metadata(),
+                include_object=include_in_autogenerate,
+                **conf_args
+            )
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
+
+            if sqlite:
+                violations = connection.exec_driver_sql('PRAGMA foreign_key_check').all()
+                if violations:
+                    raise RuntimeError(f'Migration left dangling foreign keys: {violations}')
+        finally:
+            if sqlite:
+                _set_sqlite_foreign_keys(connection, True)
+
+
+def _set_sqlite_foreign_keys(connection, enabled):
+    # The pragma is ignored inside a transaction, so end any open one first.
+    connection.commit()
+    connection.exec_driver_sql(f"PRAGMA foreign_keys={'ON' if enabled else 'OFF'}")
+    connection.commit()
 
 
 if context.is_offline_mode():
