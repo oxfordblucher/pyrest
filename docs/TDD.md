@@ -126,6 +126,14 @@ deck_cards                                  (association object)
   board           varchar(16) check in ('commander','main','side')  ┘
   quantity        int  check >= 1
 
+notifications
+  id              PK int
+  user_id         FK users.id ON DELETE CASCADE   ┐ index (user_id, created_at)
+  kind            varchar(32)  ('cards_removed')   │
+  data            json         kind-specific payload
+  created_at      timestamptz                      ┘
+  read_at         timestamptz  null = unread
+
 sync_state
   key             PK text  ('oracle_cards')
   source_updated_at text                    (Scryfall bulk "updated_at", compared for equality)
@@ -178,7 +186,7 @@ Every substring filter escapes `\ % _` and passes `escape='\\'` (AUDIT S6).
 ## 7. Sync pipeline
 
 ```
-flask sync-cards [--file PATH] [--force]
+flask sync-cards [--file PATH] [--force] [--allow-removals]
   1. GET https://api.scryfall.com/bulk-data/oracle_cards
        → {jsonl_download_uri, updated_at, compressed_size}
   2. if updated_at == sync_state.source_updated_at and not --force: exit "up to date"
@@ -186,8 +194,12 @@ flask sync-cards [--file PATH] [--force]
        verify byte count == compressed_size ; os.replace → oracle_cards.jsonl.gz
   4. gzip-decode line by line → skip non-cards and art_series → normalise_card()
        → batches of 500
-  5. one transaction: mark all cards is_active=false, upsert batches (dialect-aware
-     ON CONFLICT (scryfall_id) DO UPDATE ... is_active=true), search.rebuild()
+  5. one transaction: note the active card ids, mark all cards is_active=false, upsert
+     batches (dialect-aware ON CONFLICT (scryfall_id) DO UPDATE ... is_active=true);
+     dropped = active before ∩ inactive now; refuse if dropped > 50 and > 2% of the
+     catalogue (unless --allow-removals); delete deck_cards rows for inactive cards
+     and add one `cards_removed` notification per affected deck;
+     search.rebuild()
   6. update sync_state (last_success_at / last_error), log counts + duration
 ```
 
@@ -206,7 +218,15 @@ flask sync-cards [--file PATH] [--force]
   and `Accept: application/json;q=0.9,*/*;q=0.8`, `timeout=(5, 60)`, and urllib3 `Retry`
   (3 tries, backoff 1s, on 429/500/502/503/504).
 - **Failure semantics:** a failure in any step rolls back and records `last_error`. The
-  existing catalogue keeps serving (PRD FR-S4).
+  existing catalogue, decks and notifications keep serving unchanged (PRD FR-S4).
+- **Removed cards (PRD FR-S6, owner decision 2026-10-20):** cards Scryfall no longer
+  lists stay in `cards` with `is_active=false` (hidden from search, ids stable if they
+  return) but are deleted from every deck, and each affected deck's owner gets a
+  notification listing what was removed. Decks can't add inactive cards. Because the
+  deck changes can't be undone, an import that would drop an unusual number of cards is
+  refused as a likely bad or wrong file (`MAX_DROPPED_FRACTION`, `MIN_GUARDED_DROPS` in
+  `sync/importer.py`); `--allow-removals` overrides it. Real Scryfall removals are a
+  handful of cards at a time.
 - **Scheduling:**
   - *Prod (preferred):* the platform cron / scheduled container runs `flask sync-cards`
     weekly. Web workers never schedule anything.
@@ -316,7 +336,7 @@ Paginated responses use `{ "page", "limit", "total", "results": [...] }`.
 | POST | `/api/auth/logout` | | 204 |
 | GET | `/api/auth/me` | | `Me` or 401 |
 
-`Me` = `{username, email, created_at}`. `PublicUser` = `{username, created_at}`.
+`Me` = `{username, email, created_at, unread_notifications}`. `PublicUser` = `{username, created_at}`.
 
 ### Users (public)
 | Method | Path | Response |
@@ -345,6 +365,17 @@ Replacing the full card list (PUT) rather than per-card endpoints keeps the clie
 simple and makes each edit atomic. Limits: at most 250 entries, quantity 1–99, with no
 duplicate (card, board) pairs. Unknown card ids return 400 with per-entry details, and
 the deck is left unchanged. Soft-deleted cards (`is_active=false`) stay in decks.
+
+### Notifications (signed in)
+| Method | Path | Body / params | Response |
+|---|---|---|---|
+| GET | `/api/notifications` | `page`, `limit`, `unread=true\|false` | paginated `Notification`, newest first |
+| POST | `/api/notifications/<id>/read` | | `Notification`; 404 if it isn't yours |
+| POST | `/api/notifications/read-all` | | 204 |
+
+`Notification` = `{id, kind, message, data, created_at, read}`. The only kind so far is
+`cards_removed`, with `data` = `{deck: {id, name}, cards: [{id, name, quantity, board}]}`
+and a ready-to-show `message`. Notifications are deleted with their user.
 
 ### Formats
 | Method | Path | Response |
@@ -430,6 +461,7 @@ the next `flask sync-cards --force`; until then their per-card status isn't chec
 | **M3 Decks & sharing** | C9, C1 (decks), C2, C3 | Deck endpoints as in §9 with the full authorisation matrix tested. |
 | **M4 Hardening** | S7 pt2, Q7 pt2, Q5 | Rate limits, CI matrix green, coverage ≥ 85%, human review, first deploy. |
 | **M5 Owner decisions** | D1, A1, F1, L1, L2, Q8 pt2 | Identical ordering on both dialects, change-password, configurable CORS, deck legality, mypy clean in CI. |
+| **M6 Removed cards** | R1 | Removed cards leave decks with owner notifications; mass removals refused. |
 
 ## 13. Alternatives considered
 

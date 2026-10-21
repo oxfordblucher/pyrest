@@ -44,8 +44,11 @@ def get_card(scryfall_id: str) -> Card:
     return card
 
 
-def get_cards_by_scryfall_ids(scryfall_ids: Iterable[str]) -> dict[str, Card]:
+def get_active_cards_by_scryfall_ids(scryfall_ids: Iterable[str]) -> dict[str, Card]:
+    """Cards that can go in a deck: ones Scryfall has removed (inactive) can't."""
     if not scryfall_ids:
         return {}
-    cards = db.session.execute(db.select(Card).where(Card.scryfall_id.in_(scryfall_ids))).scalars()
+    cards = db.session.execute(
+        db.select(Card).where(Card.scryfall_id.in_(scryfall_ids), Card.is_active)
+    ).scalars()
     return {c.scryfall_id: c for c in cards}

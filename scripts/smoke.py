@@ -90,7 +90,10 @@ def main():
     suffix = str(int(time.time() * 1000))[-9:]
     alice = signup(f"alice_{suffix}")
     bob = signup(f"bob_{suffix}")
-    check(alice.get("/api/auth/me")["username"] == f"alice_{suffix}", "me")
+    me = alice.get("/api/auth/me")
+    check(me["username"] == f"alice_{suffix}" and me["unread_notifications"] == 0, "me")
+    check(alice.get("/api/notifications")["total"] == 0, "new users have no notifications")
+    anon.get("/api/notifications", expect=401)
     anon.get("/api/auth/me", expect=401)
     Client().post("/api/auth/login", 400, json={"login": "x", "password": "y"})  # no CSRF
 

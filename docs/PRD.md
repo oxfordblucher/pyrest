@@ -69,6 +69,8 @@ can register, build decks from the catalogue, and optionally share decks publicl
 - **FR-S3** Manual trigger via CLI for the operator.
 - **FR-S4** A failed sync leaves the existing catalogue intact and serving.
 - **FR-S5** Sync respects Scryfall's API guidelines (User-Agent, rate limits).
+- **FR-S6** Cards Scryfall stops listing are removed from every deck, and each affected
+  deck's owner is notified (in-app notification listing the cards and quantities).
 
 ### Accounts
 - **FR-A1** Register with username, email, password (12–128 characters).
@@ -127,4 +129,5 @@ Mirrors [AUDIT](AUDIT.md) milestones; details in [TDD §12](TDD.md#12-milestones
    or verification in v1.
 3. **Decided 2026-10-20:** full deck legality in v1, reported rather than enforced (FR-D5).
 4. **[OPEN]** Hosting target (Fly.io / Render / VPS) — affects how the sync job is scheduled (TDD §7).
-5. **[OPEN]** Should cards removed from Scryfall's Oracle file be deleted, or soft-deleted to protect existing decks? (TDD assumes soft-delete.)
+5. **Decided 2026-10-20:** cards Scryfall drops are removed from decks and owners are
+   notified (FR-S6). They stay hidden in the catalogue so their ids stay stable.

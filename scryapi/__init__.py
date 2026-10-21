@@ -8,7 +8,7 @@ from scryapi.config import get_config
 from scryapi.errors import error_response, register_error_handlers
 from scryapi.extensions import csrf, db, limiter, login_manager, migrate
 from scryapi.models import User
-from scryapi.routes import authbp, cardsbp, decksbp, formatsbp, usersbp
+from scryapi.routes import authbp, cardsbp, decksbp, formatsbp, notificationsbp, usersbp
 from scryapi.sync.cli import run_scheduler_command, sync_cards_command
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
@@ -37,6 +37,7 @@ def create_app(config=None):
     app.register_blueprint(cardsbp)
     app.register_blueprint(decksbp)
     app.register_blueprint(formatsbp)
+    app.register_blueprint(notificationsbp)
     app.register_blueprint(usersbp)
 
     @app.after_request

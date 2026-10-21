@@ -3,7 +3,7 @@ import pytest
 from scryapi.models import User
 from tests.conftest import PASSWORD, ApiClient, csrf_headers, register
 
-ME_KEYS = {"username", "email", "created_at"}
+ME_KEYS = {"username", "email", "created_at", "unread_notifications"}
 
 
 def login(client, login_value="alice", password=PASSWORD, **extra):

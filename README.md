@@ -63,9 +63,17 @@ logout), run this against the running server. It creates two throwaway users eac
 python scripts/smoke.py                      # default http://127.0.0.1:5000
 ```
 
+When Scryfall stops listing a card, the next sync removes it from every deck and
+notifies each deck's owner (`/api/notifications`; `/api/auth/me` has an
+`unread_notifications` count). A sync that would remove an unusual number of cards
+(more than 2% of the catalogue) is refused as a probable bad file; pass
+`--allow-removals` if it's really intended.
+
 Run `sync-cards` again any time. It skips the import when Scryfall's data hasn't
 changed (`--force` overrides this). To work offline, use
-`sync-cards --file tests/fixtures/cards_sample.json` to load 21 sample cards.
+`sync-cards --file tests/fixtures/cards_sample.json` to load 21 sample cards into a
+fresh database. (Over a full catalogue it's refused, because it would remove every other
+card from decks; use a separate `DATABASE_URL` instead.)
 
 For a weekly refresh, schedule `flask --app scryapi sync-cards` with cron or your host's
 scheduled jobs. Or run `flask --app scryapi run-scheduler` as a single long-lived
@@ -93,6 +101,9 @@ Production: `gunicorn 'scryapi:create_app()'`, with `flask db upgrade` as a rele
 | GET / PATCH / DELETE | `/api/decks/<id>` | owner (GET: or public) | |
 | PUT | `/api/decks/<id>/cards` | owner | `{cards: [{card_id, quantity, board?}]}` replaces the list; `board` is `main` (default), `side` or `commander` |
 | GET | `/api/formats` | | formats a deck can use, with their construction rules |
+| GET | `/api/notifications` | ✓ | yours, newest first; `?unread=true` |
+| POST | `/api/notifications/<id>/read` | ✓ | |
+| POST | `/api/notifications/read-all` | ✓ | |
 
 A deck's `legality` field reports whether it's legal in its format and why not (banned
 cards, copy limits, size, commander, color identity). Illegal decks still save. After

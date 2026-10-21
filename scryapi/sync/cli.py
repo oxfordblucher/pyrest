@@ -5,6 +5,7 @@ from flask import current_app
 from flask.cli import with_appcontext
 
 from scryapi.sync import run_sync
+from scryapi.sync.download import SyncError
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +20,32 @@ WEEK_SECONDS = 7 * 24 * 60 * 60
     help="Import a local .jsonl, .jsonl.gz or .json file instead of downloading.",
 )
 @click.option("--force", is_flag=True, help="Import even if Scryfall's data is unchanged.")
+@click.option(
+    "--allow-removals",
+    is_flag=True,
+    help="Import even if it would remove an unusually large number of cards (and so "
+    "remove them from decks).",
+)
 @with_appcontext
-def sync_cards_command(file: str | None, force: bool) -> None:
-    """Download Scryfall Oracle bulk data and upsert it into the catalogue."""
-    result = run_sync(file=file, force=force)
-    if result.imported is None:
+def sync_cards_command(file: str | None, force: bool, allow_removals: bool) -> None:
+    """Download Scryfall Oracle bulk data and upsert it into the catalogue.
+
+    Cards Scryfall no longer lists are hidden and removed from decks; their owners are
+    notified.
+    """
+    try:
+        result = run_sync(file=file, force=force, allow_removals=allow_removals)
+    except SyncError as e:
+        raise click.ClickException(str(e)) from e
+    imported = result.imported
+    if imported is None:
         click.echo("Card data is already up to date.")
-    else:
+        return
+    click.echo(f"Imported {imported.imported} cards ({imported.skipped} skipped).")
+    if imported.dropped or imported.decks_changed:
         click.echo(
-            f"Imported {result.imported.imported} cards ({result.imported.skipped} skipped)."
+            f"{imported.dropped} cards were removed by Scryfall; "
+            f"{imported.decks_changed} decks changed and their owners were notified."
         )
 
 

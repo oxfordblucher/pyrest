@@ -12,6 +12,7 @@ from scryapi.schemas.user import (
     parse_password_change,
     parse_registration,
 )
+from scryapi.services import notifications as notification_service
 from scryapi.services import users as user_service
 
 authbp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -55,7 +56,8 @@ def login():
     user = user_service.authenticate(credentials)
     if user is None:
         raise ApiError(401, "unauthorized", "Invalid username/email or password")
-    return dump_me(user), 200, _start_session(user, remember=credentials.remember)
+    unread = notification_service.unread_count(user)
+    return dump_me(user, unread), 200, _start_session(user, remember=credentials.remember)
 
 
 @authbp.post("/password")
@@ -65,7 +67,8 @@ def change_password():
     user = user_service.change_password(current_user, parse_password_change(json_body()))
     # Old cookies now carry a stale session version; issue fresh ones on this device.
     remembered = current_app.config.get("REMEMBER_COOKIE_NAME", COOKIE_NAME) in request.cookies
-    return dump_me(user), 200, _start_session(user, remember=remembered)
+    unread = notification_service.unread_count(user)
+    return dump_me(user, unread), 200, _start_session(user, remember=remembered)
 
 
 @authbp.post("/logout")
@@ -78,4 +81,4 @@ def logout():
 @authbp.get("/me")
 @login_required
 def me():
-    return dump_me(current_user)
+    return dump_me(current_user, notification_service.unread_count(current_user))

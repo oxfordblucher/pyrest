@@ -36,6 +36,7 @@ def run_sync(
     file: str | Path | None = None,
     force: bool = False,
     session: requests.Session | None = None,
+    allow_removals: bool = False,
 ) -> SyncResult:
     """Download (unless `file` is given) and import Oracle cards. Requires an app context.
 
@@ -57,7 +58,7 @@ def run_sync(
             file = download_bulk(session, info, data_dir())
             source_updated_at = info.updated_at
 
-        result = import_cards(iter_cards(file))
+        result = import_cards(iter_cards(file), allow_removals=allow_removals)
 
         state.source_updated_at = source_updated_at or state.source_updated_at
         state.last_success_at = datetime.now(UTC)

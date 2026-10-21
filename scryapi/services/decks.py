@@ -7,10 +7,11 @@ from sqlalchemy.orm import selectinload
 
 from scryapi.errors import ApiError, ValidationError
 from scryapi.extensions import db
-from scryapi.models import Deck, DeckCard, User
+from scryapi.models import Card, Deck, DeckCard, Notification, User
+from scryapi.models.notification import CARDS_REMOVED
 from scryapi.schemas.deck import DeckChanges, DeckEntry
 from scryapi.services import paginate
-from scryapi.services.cards import get_cards_by_scryfall_ids
+from scryapi.services.cards import get_active_cards_by_scryfall_ids
 
 type DeckPage = tuple[list[tuple[Deck, int]], int]
 
@@ -101,7 +102,7 @@ def update(deck: Deck, changes: DeckChanges) -> Deck:
 
 def replace_cards(deck: Deck, entries: list[DeckEntry]) -> Deck:
     """Replace the deck's whole card list atomically."""
-    cards = get_cards_by_scryfall_ids({e.card_id for e in entries})
+    cards = get_active_cards_by_scryfall_ids({e.card_id for e in entries})
     unknown = [
         {"field": f"cards[{i}].card_id", "message": "is not a known card"}
         for i, e in enumerate(entries)
@@ -123,3 +124,40 @@ def replace_cards(deck: Deck, entries: list[DeckEntry]) -> Deck:
 def delete(deck: Deck) -> None:
     db.session.delete(deck)
     db.session.commit()
+
+
+def remove_inactive_cards() -> int:
+    """Drop cards Scryfall has removed (inactive) from every deck, notifying each owner.
+
+    Called by the card import inside its transaction, so the import, the removals and
+    the notifications commit or roll back together. Returns the number of decks changed.
+    """
+    rows = db.session.execute(
+        db.select(DeckCard, Deck, Card)
+        .join(Deck, DeckCard.deck_id == Deck.id)
+        .join(Card, DeckCard.card_id == Card.id)
+        .where(Card.is_active.is_(False))
+        .order_by(Deck.id, DeckCard.board, Card.sort_name)
+    ).all()
+    removed: dict[int, tuple[Deck, list[dict[str, Any]]]] = {}
+    for entry, deck, card in rows:
+        _, cards = removed.setdefault(deck.id, (deck, []))
+        cards.append(
+            {"id": card.scryfall_id, "name": card.name, "quantity": entry.quantity,
+             "board": entry.board}
+        )  # fmt: skip
+        db.session.delete(entry)
+
+    now = datetime.now(UTC)
+    for deck, cards in removed.values():
+        deck.updated_at = now
+        db.session.add(
+            Notification(
+                user_id=deck.user_id,
+                kind=CARDS_REMOVED,
+                data={"deck": {"id": deck.id, "name": deck.name}, "cards": cards},
+                created_at=now,
+            )
+        )
+    db.session.flush()
+    return len(removed)

@@ -3,7 +3,7 @@
 A Flask JSON API that mirrors Scryfall Oracle card data for search, with users and decks.
 
 ## Status
-M0–M5 of `docs/AUDIT.md` are done. What's left is listed under "Hand-off" at the end of
+M0–M6 of `docs/AUDIT.md` are done. What's left is listed under "Hand-off" at the end of
 that file: hosting (deferred by the owner) and pushing the branch. Don't guess either.
 
 ## Read first

@@ -85,8 +85,13 @@ def parse_login(body: Json) -> Login:
     return Login(login=login, password=password[:MAX_PASSWORD], remember=remember)
 
 
-def dump_me(user: User) -> Json:
-    return {"username": user.username, "email": user.email, "created_at": iso(user.created_at)}
+def dump_me(user: User, unread_notifications: int = 0) -> Json:
+    return {
+        "username": user.username,
+        "email": user.email,
+        "created_at": iso(user.created_at),
+        "unread_notifications": unread_notifications,
+    }
 
 
 def dump_public_user(user: User) -> Json:

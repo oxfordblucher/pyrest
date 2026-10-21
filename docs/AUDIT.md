@@ -579,6 +579,33 @@ See M4. Type hints on public functions, plus a lenient `mypy scryapi` job in CI.
 
 ---
 
+## M6 — Removed cards (owner decision 2026-10-20)
+
+### [x] R1 · P2 · Drop removed cards from decks and notify owners
+Resolves PRD open Q5. Cards Scryfall stops listing are deleted from every deck in the
+import transaction, with one `cards_removed` notification per affected deck
+(`GET /api/notifications`, mark read, `unread_notifications` on `Me`). They stay in
+`cards` as inactive, so ids are stable if Scryfall restores them, and decks can't add
+them. An import dropping more than 2% of the catalogue (and more than 50 cards) is refused
+unless `--allow-removals` is passed.
+
+### M6 completion notes
+
+- Verified on the full Postgres catalogue. Removing Lightning Bolt and Counterspell from
+  the bulk file removed them from 6 decks and notified their owners ("Scryfall no longer
+  lists 2 cards from your deck “Izzet Tempo”, so they were removed: Counterspell ×3,
+  Lightning Bolt ×4."). Loading the 21-card sample over the full catalogue was refused
+  ("would remove 36567 of 36588 cards") with nothing changed.
+- A failure after the deck entries are deleted (tested by failing the search rebuild)
+  rolls back the import, the removals and the notifications together.
+- Cost: the active-id snapshot and the prune add about 160 ms to an import. Separately,
+  full imports on Postgres take about 18 s, up from 13 s, since L1 started storing
+  legalities (23 keys per card). Fine for a weekly job.
+- Cards that were already inactive and still sat in decks from before this change are
+  removed (with notifications) by the first sync after upgrading.
+
+---
+
 ## Hand-off: decisions and work for the human pass
 
 Everything above is implemented and tested. What's left needs the owner:
@@ -594,9 +621,7 @@ Everything above is implemented and tested. What's left needs the owner:
    and confirm the CI matrix (lint, mypy, tests on SQLite and Postgres) is green. It has
    never run on GitHub.
 4. **Optional review:** read the API contract (TDD §9) as a frontend author would, and
-   spot-check the legality rules against formats you play. Confirm PRD open Q5: cards
-   Scryfall drops are soft-deleted (hidden from search, kept in decks), as the TDD
-   assumed.
+   spot-check the legality rules against formats you play.
 
 ---
 
