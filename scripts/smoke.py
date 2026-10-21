@@ -120,8 +120,13 @@ def main():
         },
     )
     check(deck["card_count"] == 5, f"card_count {deck['card_count']}")
-    alice.call("PATCH", f"/api/decks/{public['id']}", 200, json={"format": "modern"})
+    patched = alice.call("PATCH", f"/api/decks/{public['id']}", 200, json={"format": "Modern"})
+    problems = [p["code"] for p in patched["legality"]["problems"]]
+    check(problems == ["deck_too_small", "too_many_copies"], f"legality {patched['legality']}")
     check(anon.get(f"/api/decks/{public['id']}")["format"] == "modern", "public deck view")
+    alice.call("PATCH", f"/api/decks/{public['id']}", 400, json={"format": "kitchen table"})
+    formats = {f["key"] for f in anon.get("/api/formats")["results"]}
+    check({"modern", "commander"} <= formats, "format list")
     anon.get(f"/api/decks/{private['id']}", expect=404)
     bob.get(f"/api/decks/{private['id']}", expect=404)
     bob.call("PATCH", f"/api/decks/{public['id']}", 403, json={"name": "Mine now"})

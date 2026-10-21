@@ -41,6 +41,61 @@ def test_sort_name_migration_backfills_existing_cards(app):
         assert conn.execute(db.text("SELECT sort_name FROM cards")).scalar_one() == "aether vial"
 
 
+def test_deck_legality_migration_normalises_formats(app):
+    downgrade(revision="b7e2f4a9c1d3")
+    with db.engine.begin() as conn:
+        conn.execute(
+            db.text(
+                "INSERT INTO users (id, username, email, password_hash, created_at) "
+                "VALUES (1, 'alice', 'a@example.com', 'x', CURRENT_TIMESTAMP)"
+            )
+        )
+        for i, fmt in enumerate([" Modern ", "kitchen table", None, "EDH", "commander"]):
+            conn.execute(
+                db.text(
+                    "INSERT INTO decks (id, user_id, name, format, is_public, created_at, "
+                    "updated_at) VALUES (:id, 1, 'd', :fmt, false, CURRENT_TIMESTAMP, "
+                    "CURRENT_TIMESTAMP)"
+                ),
+                {"id": i + 1, "fmt": fmt},
+            )
+    upgrade()
+    with db.engine.connect() as conn:
+        formats = conn.execute(db.text("SELECT format FROM decks ORDER BY id")).scalars().all()
+    assert formats == ["modern", None, None, None, "commander"]
+
+
+def test_commander_board_is_allowed_after_upgrade_and_removed_on_downgrade(app, cards):
+    from scryapi.models import Card
+
+    card_id = db.session.execute(db.select(Card.id).limit(1)).scalar_one()
+    with db.engine.begin() as conn:
+        conn.execute(
+            db.text(
+                "INSERT INTO users (id, username, email, password_hash, created_at) "
+                "VALUES (1, 'alice', 'a@example.com', 'x', CURRENT_TIMESTAMP)"
+            )
+        )
+        conn.execute(
+            db.text(
+                "INSERT INTO decks (id, user_id, name, is_public, created_at, updated_at) "
+                "VALUES (1, 1, 'd', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            )
+        )
+        conn.execute(
+            db.text(
+                "INSERT INTO deck_cards (deck_id, card_id, board, quantity) "
+                "VALUES (1, :card, 'commander', 1), (1, :card, 'main', 1)"
+            ),
+            {"card": card_id},
+        )
+    db.session.remove()
+    downgrade(revision="b7e2f4a9c1d3")
+    with db.engine.connect() as conn:
+        boards = conn.execute(db.text("SELECT board FROM deck_cards")).scalars().all()
+    assert boards == ["main"]
+
+
 def test_migrations_leave_sqlite_foreign_keys_enforced(app):
     if db.engine.dialect.name != "sqlite":
         pytest.skip("SQLite-specific")

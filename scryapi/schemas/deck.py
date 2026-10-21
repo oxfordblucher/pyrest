@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 
+from scryapi.formats import FORMATS
 from scryapi.models.deck import BOARDS
 from scryapi.schemas import Errors, iso
 from scryapi.schemas.card import dump_card_summary
+from scryapi.services.legality import check_deck
 
 MAX_NAME = 100
 MAX_DESCRIPTION = 2000
-MAX_FORMAT = 50
 MAX_ENTRIES = 250
 MAX_QUANTITY = 99
 
@@ -48,13 +49,26 @@ def _optional_text(body, field, max_length, errors, required=False):
     return value or None
 
 
+def _parse_format(body, errors):
+    value = body.get("format", _UNSET)
+    if value is _UNSET or value is None:
+        return value
+    key = value.strip().lower() if isinstance(value, str) else None
+    if key == "":
+        return None
+    if key not in FORMATS:
+        errors.add("format", "must be a format key from GET /api/formats, or null")
+        return _UNSET
+    return key
+
+
 def parse_deck_fields(body, partial):
     """Validate deck metadata. `partial=True` for PATCH (every field optional)."""
     errors = Errors()
     values = {
         "name": _optional_text(body, "name", MAX_NAME, errors, required=not partial),
         "description": _optional_text(body, "description", MAX_DESCRIPTION, errors),
-        "format": _optional_text(body, "format", MAX_FORMAT, errors),
+        "format": _parse_format(body, errors),
     }
     if values["name"] is None:  # sent as null or blank
         errors.add("name", "must not be blank")
@@ -122,11 +136,23 @@ def dump_deck_summary(deck, card_count):
     }
 
 
+def dump_format(fmt):
+    return {
+        "key": fmt.key,
+        "name": fmt.name,
+        "kind": str(fmt.kind),
+        "deck_size": fmt.deck_size,
+        "sideboard_size": fmt.sideboard_size,
+        "max_copies": fmt.max_copies,
+    }
+
+
 def dump_deck(deck):
     entries = sorted(deck.entries, key=lambda e: (BOARDS.index(e.board), e.card.sort_name))
     return {
         **dump_deck_summary(deck, sum(e.quantity for e in entries)),
         "description": deck.description,
+        "legality": check_deck(deck.format, entries),
         "cards": [
             {"card": dump_card_summary(e.card), "quantity": e.quantity, "board": e.board}
             for e in entries

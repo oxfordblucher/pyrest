@@ -59,6 +59,7 @@ def normalise_card(raw):
         or None,
         "image_uri": _image_uri(raw) or (_image_uri(faces[0]) if faces else None),
         "scryfall_uri": raw.get("scryfall_uri"),
+        "legalities": raw.get("legalities"),
     }
 
 

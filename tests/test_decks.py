@@ -32,7 +32,7 @@ def set_cards(client, deck_id, cards):
 
 def test_create_deck(alice):
     deck = make_deck(alice, description="Go face", format="modern", is_public=True)
-    assert set(deck) == SUMMARY_KEYS | {"description", "cards"}
+    assert set(deck) == SUMMARY_KEYS | {"description", "legality", "cards"}
     assert deck["owner"] == "alice"
     assert deck["cards"] == [] and deck["card_count"] == 0
     assert (deck["description"], deck["format"], deck["is_public"]) == (
@@ -60,6 +60,8 @@ def test_create_requires_auth(anon):
         ({"name": "Burn", "is_public": "yes"}, "is_public"),
         ({"name": "Burn", "description": 5}, "description"),
         ({"name": "Burn", "format": "f" * 51}, "format"),
+        ({"name": "Burn", "format": "kitchen table"}, "format"),
+        ({"name": "Burn", "format": 60}, "format"),
         ({"name": "Burn", "owner": "bob"}, "owner"),
     ],
 )

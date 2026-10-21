@@ -45,6 +45,7 @@ class Card(db.Model):
     color_identity = db.Column(db.JSON)
     layout = db.Column(db.String(32))
     card_faces = db.Column(db.JSON)
+    legalities = db.Column(db.JSON)  # Scryfall's {format: legal|not_legal|banned|restricted}
     image_uri = db.Column(db.Text)
     scryfall_uri = db.Column(db.Text)
     is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())

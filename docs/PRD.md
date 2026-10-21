@@ -42,7 +42,6 @@ can register, build decks from the catalogue, and optionally share decks publicl
 ## 5. Non-goals (v1)
 
 - Card prices, printings/sets, images hosting (link to Scryfall image URIs instead).
-- Format legality validation of decks (**[OPEN]** candidate for v2).
 - Social features (likes, comments, follows).
 - A frontend. The API is consumed by a separate browser client, same-origin or not
   (decided 2026-10-20: configurable, see TDD §8).
@@ -81,9 +80,12 @@ can register, build decks from the catalogue, and optionally share decks publicl
 
 ### Decks
 - **FR-D1** CRUD on own decks.
-- **FR-D2** Add/remove/set quantity of cards, main or sideboard.
+- **FR-D2** Add/remove/set quantity of cards: main, sideboard or commander.
 - **FR-D3** Visibility flag; private decks are invisible (404) to others.
 - **FR-D4** Browse recent public decks; list a user's public decks.
+- **FR-D5** A deck's format is one of Scryfall's formats. Viewing a deck reports whether
+  it's legal in that format and lists every problem (banned or illegal cards, copy
+  limits, deck size, commander and color identity). Illegal decks still save.
 
 ## 7. Non-functional requirements
 
@@ -123,6 +125,6 @@ Mirrors [AUDIT](AUDIT.md) milestones; details in [TDD §12](TDD.md#12-milestones
    configuration (`SCRYAPI_CORS_ORIGINS`, `SCRYAPI_COOKIE_SAMESITE`), not code.
 2. **Decided 2026-10-20:** keep 12–128 characters, add change-password, no email reset
    or verification in v1.
-3. **[OPEN]** Deck format validation (Commander singleton, 60-card min) — v1 or v2?
+3. **Decided 2026-10-20:** full deck legality in v1, reported rather than enforced (FR-D5).
 4. **[OPEN]** Hosting target (Fly.io / Render / VPS) — affects how the sync job is scheduled (TDD §7).
 5. **[OPEN]** Should cards removed from Scryfall's Oracle file be deleted, or soft-deleted to protect existing decks? (TDD assumes soft-delete.)

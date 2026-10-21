@@ -104,6 +104,7 @@ cards
   color_identity  json
   layout          text
   card_faces      json                     (raw faces subset for multi-face cards)
+  legalities      json                     Scryfall {format: legal|not_legal|banned|restricted}
   image_uri       text
   scryfall_uri    text
   is_active       bool default true        (false if dropped from latest bulk: soft delete)
@@ -115,14 +116,14 @@ decks
   user_id         FK users.id  ON DELETE CASCADE  index
   name            text not null (1–100)
   description     text
-  format          text                     (free text in v1)
+  format          varchar(50)              a scryapi.formats.FORMATS key, or null
   is_public       bool default false
   created_at, updated_at
 
 deck_cards                                  (association object)
   deck_id         FK decks.id ON DELETE CASCADE  ┐ PK
   card_id         FK cards.id                    │
-  board           text check in ('main','side')  ┘
+  board           varchar(16) check in ('commander','main','side')  ┘
   quantity        int  check >= 1
 
 sync_state
@@ -335,14 +336,54 @@ Paginated responses use `{ "page", "limit", "total", "results": [...] }`.
 | PUT | `/api/decks/<id>/cards` | owner | `{cards: [{card_id (scryfall_id), quantity, board? = "main"}]}` (replaces the full list) | `Deck` |
 
 `DeckSummary` = `{id, name, format, is_public, owner (username), card_count, created_at, updated_at}`.
-`Deck` = `DeckSummary + {description, cards: [{card: CardSummary, quantity, board}]}`. Cards
-are ordered by main board first, then side, then by name.
+`Deck` = `DeckSummary + {description, legality, cards: [{card: CardSummary, quantity, board}]}`.
+Cards are ordered commander, main, side, then by name. `format` is a key from
+`GET /api/formats` (case-insensitive on input) or null.
 `CardSummary` = `{id, name, mana_cost, type_line}`.
 
 Replacing the full card list (PUT) rather than per-card endpoints keeps the client
 simple and makes each edit atomic. Limits: at most 250 entries, quantity 1–99, with no
 duplicate (card, board) pairs. Unknown card ids return 400 with per-entry details, and
 the deck is left unchanged. Soft-deleted cards (`is_active=false`) stay in decks.
+
+### Formats
+| Method | Path | Response |
+|---|---|---|
+| GET | `/api/formats` | `{results: [{key, name, kind, deck_size, sideboard_size, max_copies}]}` |
+
+### Deck legality (AUDIT L1/L2, `services/legality.py`)
+
+`legality` is null when the deck has no format, else
+`{format, legal, problems: [{code, message, card?: {id, name}}]}`. **Report, don't
+block:** decks are built a few cards at a time, so saving an illegal deck succeeds and
+the report says what's wrong. Rules by format kind (`scryapi/formats.py`):
+
+| Kind | Formats | Rules |
+|---|---|---|
+| constructed | standard, future, alchemy, historic, timeless, pioneer, modern, premodern, legacy, vintage, pauper, penny, oldschool | main ≥ 60, sideboard ≤ 15, ≤ 4 copies across main + side, no commander |
+| singleton | gladiator | exactly 100, 1 copy, no sideboard or commander |
+| commander | commander, duel, predh, paupercommander, brawl, competitivebrawl (100); standardbrawl (60) | exact size including 1–2 commanders, 1 copy, no sideboard, color identity |
+| oathbreaker | oathbreaker | 60 including one planeswalker + at most one instant/sorcery signature spell, 1 copy, color identity |
+| card_pool | tlr | per-card legality only (rules unconfirmed) |
+
+Every kind checks each card's Scryfall status: `banned` and `not_legal` are problems.
+`restricted` means at most one copy in constructed and card-pool formats (Vintage,
+Timeless, Old School), and "can't be your commander" in commander formats (Duel, Competitive
+Brawl), following Scryfall's usage. Basic lands and "A deck can have any number of cards
+named …" are unlimited; "up to seven/nine …" sets that limit.
+
+Commanders: a legendary creature (Brawl variants also accept a legendary planeswalker,
+Vehicle or Spacecraft; Pauper Commander any creature, since uncommon rarity isn't
+stored), or a card saying "can be your commander". Two commanders must pair up: both
+plain Partner, the same "Partner—<group>", mutual "Partner with", "Choose a Background"
+with a Background, or "Doctor's companion" with a Time Lord Doctor.
+
+Problem codes: `unknown_format`, `banned`, `not_legal`, `too_many_copies`,
+`deck_too_small`, `deck_wrong_size`, `sideboard_too_large`, `sideboard_not_allowed`,
+`commander_not_allowed`, `commander_missing`, `too_many_commanders`, `invalid_commander`,
+`invalid_partners`, `color_identity`. Legality is only computed for a single deck
+(`Deck`), not in `DeckSummary` lists. Cards imported before L1 have no `legalities` until
+the next `flask sync-cards --force`; until then their per-card status isn't checked.
 
 ## 10. Testing strategy
 

@@ -531,11 +531,11 @@ for exactly those origins and adds them to `WTF_CSRF_TRUSTED_ORIGINS`.
 `SCRYAPI_COOKIE_SAMESITE` (`Lax` default; `None` forces `Secure`). With nothing set,
 behaviour is unchanged.
 
-### [ ] L1 · P2 · Store card legalities; constrain deck format
+### [x] L1 · P2 · Store card legalities; constrain deck format
 Import Scryfall `legalities` into `cards.legalities` (JSON). `Deck.format` must be one
 of Scryfall's format keys or null. Commander-style decks get a `commander` board.
 
-### [ ] L2 · P2 · Deck legality report
+### [x] L2 · P2 · Deck legality report
 `GET /api/decks/<id>` includes `legality: {format, legal, problems: [{code, message,
 card?}]}`. Report, don't block: saving an illegal deck still succeeds. Rules: per-card
 legality, Vintage restricted list, constructed size/sideboard/4-copy limits (basic lands
@@ -560,7 +560,7 @@ access the agents don't have:
    set `SCRYAPI_CORS_ORIGINS` (and `SCRYAPI_COOKIE_SAMESITE=None` only if it's on a
    different site). Nothing to set if it's served from the API's host.
 3. ~~**Password policy**~~: decided; change-password implemented in A1 (M5).
-4. **Deck format validation (PRD open Q3)** isn't implemented. `format` is free text.
+4. ~~**Deck format validation**~~: implemented as L1/L2 (M5).
 5. ~~**Collation**~~: resolved by D1 (M5).
 6. **Deep pagination:** `OFFSET` gets slower towards the end of the catalogue (about
    90 ms at page 1500). Consider keyset pagination if clients really page that far.

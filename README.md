@@ -91,7 +91,13 @@ Production: `gunicorn 'scryapi:create_app()'`, with `flask db upgrade` as a rele
 | GET | `/api/decks/mine` | ✓ | |
 | POST | `/api/decks` | ✓ | `{name, description?, format?, is_public?}` |
 | GET / PATCH / DELETE | `/api/decks/<id>` | owner (GET: or public) | |
-| PUT | `/api/decks/<id>/cards` | owner | `{cards: [{card_id, quantity, board?}]}` replaces the list |
+| PUT | `/api/decks/<id>/cards` | owner | `{cards: [{card_id, quantity, board?}]}` replaces the list; `board` is `main` (default), `side` or `commander` |
+| GET | `/api/formats` | | formats a deck can use, with their construction rules |
+
+A deck's `legality` field reports whether it's legal in its format and why not (banned
+cards, copy limits, size, commander, color identity). Illegal decks still save. After
+upgrading an existing database to the legality migration, run
+`flask --app scryapi sync-cards --force` once to load card legalities.
 
 Auth uses session cookies. All errors are JSON:
 `{"error": "<code>", "message": "...", "details": [...]}`. The full contract is in
