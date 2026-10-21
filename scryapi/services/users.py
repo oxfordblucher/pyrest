@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from scryapi.errors import ApiError, ConflictError
+from scryapi.errors import ApiError, ConflictError, ValidationError
 from scryapi.extensions import db
 from scryapi.models import User
 
@@ -46,6 +46,16 @@ def authenticate(login):
         check_password_hash(_DUMMY_HASH, login.password)
         return None
     return user if check_password_hash(user.password_hash, login.password) else None
+
+
+def change_password(user, change):
+    """Set a new password and bump the session version, signing out other sessions."""
+    if not check_password_hash(user.password_hash, change.current_password):
+        raise ValidationError([{"field": "current_password", "message": "is incorrect"}])
+    user.password_hash = generate_password_hash(change.new_password)
+    user.session_version += 1
+    db.session.commit()
+    return user
 
 
 def get_by_username(username):

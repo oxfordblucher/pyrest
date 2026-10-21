@@ -1,11 +1,17 @@
-from flask import Blueprint, current_app, session
+from flask import Blueprint, current_app, request, session
 from flask_login import current_user, login_required, login_user, logout_user
+from flask_login.config import COOKIE_NAME
 from flask_wtf.csrf import generate_csrf
 
 from scryapi.errors import ApiError
 from scryapi.extensions import limiter
 from scryapi.schemas import json_body
-from scryapi.schemas.user import dump_me, parse_login, parse_registration
+from scryapi.schemas.user import (
+    dump_me,
+    parse_login,
+    parse_password_change,
+    parse_registration,
+)
 from scryapi.services import users as user_service
 
 authbp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -50,6 +56,16 @@ def login():
     if user is None:
         raise ApiError(401, "unauthorized", "Invalid username/email or password")
     return dump_me(user), 200, _start_session(user, remember=credentials.remember)
+
+
+@authbp.post("/password")
+@login_required
+@auth_limit
+def change_password():
+    user = user_service.change_password(current_user, parse_password_change(json_body()))
+    # Old cookies now carry a stale session version; issue fresh ones on this device.
+    remembered = current_app.config.get("REMEMBER_COOKIE_NAME", COOKIE_NAME) in request.cookies
+    return dump_me(user), 200, _start_session(user, remember=remembered)
 
 
 @authbp.post("/logout")

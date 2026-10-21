@@ -519,7 +519,7 @@ Add `cards.sort_name` (casefolded, accents stripped, computed at import) with a 
 collation (`COLLATE "C"` on Postgres), and order by `(sort_name, id)` everywhere. The
 fixture's order must be identical on both dialects. Replaces hand-off item 5.
 
-### [ ] A1 · P1 · Change password; sign out other sessions
+### [x] A1 · P1 · Change password; sign out other sessions
 `POST /api/auth/password {current_password, new_password}`: 401 on a wrong current
 password, same 12–128 rule, starts a fresh session. A per-user `session_version` is
 embedded in the Flask-Login id, so the change invalidates every other session and
@@ -559,8 +559,7 @@ access the agents don't have:
 2. **Frontend origin (PRD open Q1).** Cookies are `SameSite=Lax` and there's no CORS
    config, which assumes a same-origin frontend. A cross-origin client needs CORS with
    credentials and `SameSite=None; Secure`, or a move to tokens (TDD §13).
-3. **Password policy / reset / email verification (PRD open Q2).** The current rule is
-   12–128 characters, with no reset flow.
+3. ~~**Password policy**~~: decided; change-password implemented in A1 (M5).
 4. **Deck format validation (PRD open Q3)** isn't implemented. `format` is free text.
 5. ~~**Collation**~~: resolved by D1 (M5).
 6. **Deep pagination:** `OFFSET` gets slower towards the end of the catalogue (about

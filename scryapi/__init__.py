@@ -50,8 +50,13 @@ def create_app(config=None):
 
 
 @login_manager.user_loader
-def load_user(user_id):
-    return db.session.get(User, int(user_id))
+def load_user(login_id):
+    """Resolve a `<id>:<session_version>` login id; a stale version means signed out."""
+    user_id, _, version = login_id.partition(":")
+    if not (user_id.isdigit() and version.isdigit()):
+        return None
+    user = db.session.get(User, int(user_id))
+    return user if user is not None and user.session_version == int(version) else None
 
 
 @login_manager.unauthorized_handler

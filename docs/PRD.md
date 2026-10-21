@@ -46,7 +46,8 @@ can register, build decks from the catalogue, and optionally share decks publicl
 - Social features (likes, comments, follows).
 - A frontend. The API is consumed by a separate client (**[OPEN]**: same-origin web
   app vs. other origins — affects cookie/CORS config, see TDD §8).
-- OAuth / third-party login, password reset by email (**[OPEN]** for v1.1).
+- OAuth / third-party login, password reset by email, email verification (decided
+  2026-10-20: not in v1).
 - Admin UI.
 
 ## 6. Functional requirements
@@ -71,9 +72,11 @@ can register, build decks from the catalogue, and optionally share decks publicl
 - **FR-S5** Sync respects Scryfall's API guidelines (User-Agent, rate limits).
 
 ### Accounts
-- **FR-A1** Register with username, email, password (min 12 chars **[OPEN]**: policy).
+- **FR-A1** Register with username, email, password (12–128 characters).
 - **FR-A2** Log in / log out; session cookie auth.
 - **FR-A3** `me` endpoint returns the current user.
+- **FR-A5** Change password (requires the current one). This signs out every other
+  session, including remember-me cookies.
 - **FR-A4** Public profile by username exposes username and public decks only — never email.
 
 ### Decks
@@ -117,7 +120,8 @@ Mirrors [AUDIT](AUDIT.md) milestones; details in [TDD §12](TDD.md#12-milestones
 ## 10. Open questions
 
 1. **[OPEN]** Will the frontend be same-origin? If not, cookies need `SameSite=None; Secure` and CORS with credentials — reconsider tokens.
-2. **[OPEN]** Password policy and whether email verification / reset is needed in v1.
+2. **Decided 2026-10-20:** keep 12–128 characters, add change-password, no email reset
+   or verification in v1.
 3. **[OPEN]** Deck format validation (Commander singleton, 60-card min) — v1 or v2?
 4. **[OPEN]** Hosting target (Fly.io / Render / VPS) — affects how the sync job is scheduled (TDD §7).
 5. **[OPEN]** Should cards removed from Scryfall's Oracle file be deleted, or soft-deleted to protect existing decks? (TDD assumes soft-delete.)

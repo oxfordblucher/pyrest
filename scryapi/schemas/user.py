@@ -19,6 +19,12 @@ class Registration:
 
 
 @dataclass(frozen=True)
+class PasswordChange:
+    current_password: str
+    new_password: str
+
+
+@dataclass(frozen=True)
 class Login:
     login: str
     password: str
@@ -46,13 +52,25 @@ def parse_registration(body):
         errors.add("username", "must be 3-30 characters: letters, digits and underscores")
     if email and (len(email) > MAX_EMAIL or not EMAIL_RE.match(email)):
         errors.add("email", "must be a valid email address")
-    if isinstance(body.get("password"), str) and not (
-        MIN_PASSWORD <= len(password) <= MAX_PASSWORD
-    ):
-        errors.add("password", f"must be {MIN_PASSWORD}-{MAX_PASSWORD} characters")
+    _check_password_length(body, "password", errors)
 
     errors.raise_if_any()
     return Registration(username=username, email=email, password=password)
+
+
+def _check_password_length(body, field, errors):
+    value = body.get(field)
+    if isinstance(value, str) and not MIN_PASSWORD <= len(value) <= MAX_PASSWORD:
+        errors.add(field, f"must be {MIN_PASSWORD}-{MAX_PASSWORD} characters")
+
+
+def parse_password_change(body):
+    errors = Errors()
+    current = _string(body, "current_password", errors)
+    new = _string(body, "new_password", errors)
+    _check_password_length(body, "new_password", errors)
+    errors.raise_if_any()
+    return PasswordChange(current_password=current[:MAX_PASSWORD], new_password=new)
 
 
 def parse_login(body):

@@ -40,7 +40,7 @@ Settings come from environment variables. A `.env` file is loaded automatically 
 | `SCRYAPI_DATA_DIR` | `instance/data` | where the downloaded bulk file is kept |
 | `RATELIMIT_STORAGE_URI` | `memory://` | use `redis://...` in production (memory counts per worker) |
 | `SCRYAPI_RATELIMIT_SEARCH` | `60/minute` | per client IP, `/api/cards*` |
-| `SCRYAPI_RATELIMIT_AUTH` | `10/minute` | per client IP, login and register combined |
+| `SCRYAPI_RATELIMIT_AUTH` | `10/minute` | per client IP, login, register and change-password combined |
 | `SCRYAPI_PROXY_COUNT` | `0` | trusted reverse proxies in front of the app |
 
 ## Running
@@ -80,6 +80,7 @@ Production: `gunicorn 'scryapi:create_app()'`, with `flask db upgrade` as a rele
 | GET | `/api/auth/csrf` | | returns `{csrf_token}`; send it as `X-CSRFToken` on every POST/PUT/PATCH/DELETE |
 | POST | `/api/auth/register` | | `{username, email, password}` |
 | POST | `/api/auth/login` | | `{login, password, remember?}`; the response's `X-CSRFToken` header is the new token |
+| POST | `/api/auth/password` | ✓ | `{current_password, new_password}`; signs out your other sessions |
 | POST | `/api/auth/logout` | | |
 | GET | `/api/auth/me` | ✓ | |
 | GET | `/api/users/<username>` | | public profile |

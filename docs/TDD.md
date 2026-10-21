@@ -83,6 +83,7 @@ users
   username        text  unique not null   (3–30, [a-z0-9_], stored lowercase)
   email           text  unique not null   (stored lowercase)
   password_hash   text  not null
+  session_version int   not null  default 1
   created_at      timestamptz default now
 
 cards
@@ -240,7 +241,10 @@ flask sync-cards [--file PATH] [--force]
 `ProdConfig.validate()` raises at startup when a required key is missing.
 
 **Auth (session cookies):**
-- Flask-Login. `user_loader` fetches by id. Unauthorised API access returns JSON 401
+- Flask-Login. The login id stored in the session and remember cookies is
+  `"<user id>:<session_version>"`; `user_loader` returns nobody when the version is stale.
+  Changing the password bumps `session_version`, which signs out every other session and
+  remember-me cookie without a server-side session store. Unauthorised API access returns JSON 401
   (override `login_manager.unauthorized`), with no redirect.
 - Passwords use `werkzeug.security.generate_password_hash` (scrypt) or argon2-cffi.
   Login always computes a hash, even for unknown users, so response timing doesn't reveal
@@ -249,7 +253,7 @@ flask sync-cards [--file PATH] [--force]
   session fixation.
 - **CSRF:** Flask-WTF `CSRFProtect` covers POST/PUT/PATCH/DELETE. The client fetches a
   token from `GET /api/auth/csrf` and sends it as the `X-CSRFToken` header. Login and
-  register rotate the session, so they return the new token in an `X-CSRFToken`
+  register (and change-password) rotate the session, so they return the new token in an `X-CSRFToken`
   response header. Tokens last as long as the session (`WTF_CSRF_TIME_LIMIT = None`).
 - Ownership checks live in services (`decks.get_visible` / `decks.get_owned`). Someone
   else's private deck returns **404** for every method, so private decks can't be
@@ -257,8 +261,8 @@ flask sync-cards [--file PATH] [--force]
   visible anyway. Anonymous mutations return **401**.
 - SQLite connections run `PRAGMA foreign_keys=ON` (see `extensions.py`), so FK and
   cascade behaviour matches Postgres.
-- Rate limits use Flask-Limiter: `/api/cards*` 60/min/IP and `/api/auth/login|register`
-  10/min/IP.
+- Rate limits use Flask-Limiter: `/api/cards*` 60/min/IP and
+  `/api/auth/login|register|password` 10/min/IP (one shared bucket).
 
 ## 9. API contract (v1)
 
@@ -288,6 +292,7 @@ Paginated responses use `{ "page", "limit", "total", "results": [...] }`.
 | GET | `/api/auth/csrf` | | `{csrf_token}` |
 | POST | `/api/auth/register` | `{username, email, password}` | 201 `Me`; 409 on duplicate |
 | POST | `/api/auth/login` | `{login (username or email), password, remember?}` | 200 `Me`; 401 generic message |
+| POST | `/api/auth/password` | `{current_password, new_password}` | 200 `Me` + new `X-CSRFToken`; 400 if `current_password` is wrong; signs out other sessions |
 | POST | `/api/auth/logout` | | 204 |
 | GET | `/api/auth/me` | | `Me` or 401 |
 

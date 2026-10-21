@@ -8,6 +8,7 @@ the CSRF token fetched once and then taken from each login/register response.
 
 Needs the catalogue loaded (the 21-card sample from tests/fixtures is enough). Creates
 two throwaway users with unique names on each run. Exits non-zero on the first failure.
+Each run makes 5 requests against the auth rate limit (10/minute by default).
 """
 
 import sys
@@ -92,6 +93,17 @@ def main():
     check(alice.get("/api/auth/me")["username"] == f"alice_{suffix}", "me")
     anon.get("/api/auth/me", expect=401)
     Client().post("/api/auth/login", 400, json={"login": "x", "password": "y"})  # no CSRF
+
+    print("change password")
+    laptop = Client()
+    laptop.csrf = laptop.get("/api/auth/csrf")["csrf_token"]
+    laptop.post("/api/auth/login", json={"login": f"alice_{suffix}", "password": PASSWORD})
+    new_password = PASSWORD + "-changed"
+    change = {"current_password": PASSWORD, "new_password": new_password}
+    alice.post("/api/auth/password", 400, json={**change, "current_password": "wrong-password!"})
+    alice.post("/api/auth/password", json=change)
+    alice.get("/api/auth/me")  # still signed in here, with the rotated CSRF token
+    laptop.get("/api/auth/me", expect=401)  # signed out everywhere else
 
     print("decks")
     public = alice.post("/api/decks", 201, json={"name": "Counters", "is_public": True})

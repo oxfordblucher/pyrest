@@ -1,7 +1,7 @@
 import pytest
 
 from scryapi.models import User
-from tests.conftest import PASSWORD, csrf_headers, register
+from tests.conftest import PASSWORD, ApiClient, csrf_headers, register
 
 ME_KEYS = {"username", "email", "created_at"}
 
@@ -169,3 +169,84 @@ def test_unknown_profile_is_404(client):
 
 def test_no_user_directory(client, registered):
     assert client.get("/api/users").status_code == 404
+
+
+# --- change password ---------------------------------------------------------------
+
+NEW_PASSWORD = "a brand new passphrase"
+
+
+def change_password(api, current=PASSWORD, new=NEW_PASSWORD):
+    return api.post("/api/auth/password", json={"current_password": current, "new_password": new})
+
+
+def test_change_password(app, alice):
+    resp = change_password(alice)
+    assert resp.status_code == 200
+    assert set(resp.get_json()) == ME_KEYS
+    assert resp.headers["X-CSRFToken"]
+    assert alice.get("/api/auth/me").status_code == 200  # this device stays signed in
+    fresh = app.test_client()
+    assert login(fresh, password=PASSWORD).status_code == 401
+    assert login(fresh, password=NEW_PASSWORD).status_code == 200
+
+
+def test_change_password_wrong_current_password(app, alice):
+    resp = change_password(alice, current="not my password at all")
+    assert resp.status_code == 400
+    assert resp.get_json()["details"] == [{"field": "current_password", "message": "is incorrect"}]
+    assert login(app.test_client(), password=PASSWORD).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "body,field",
+    [
+        ({"current_password": PASSWORD, "new_password": "short"}, "new_password"),
+        ({"current_password": PASSWORD, "new_password": "x" * 129}, "new_password"),
+        ({"new_password": NEW_PASSWORD}, "current_password"),
+        ({"current_password": PASSWORD, "new_password": 123}, "new_password"),
+    ],
+)
+def test_change_password_validation(alice, body, field):
+    resp = alice.post("/api/auth/password", json=body)
+    assert resp.status_code == 400
+    assert field in {d["field"] for d in resp.get_json()["details"]}
+
+
+def test_change_password_requires_login(anon):
+    assert change_password(anon).status_code == 401
+
+
+def test_change_password_signs_out_other_sessions(app, alice):
+    other = app.test_client()
+    login(other)
+    assert other.get("/api/auth/me").status_code == 200
+    change_password(alice)
+    assert other.get("/api/auth/me").status_code == 401
+
+
+def test_change_password_invalidates_other_remember_cookies(app, alice):
+    other = app.test_client()
+    login(other, remember=True)
+    other.delete_cookie("session")
+    assert other.get("/api/auth/me").status_code == 200  # restored from remember cookie
+    other.delete_cookie("session")
+    change_password(alice)
+    assert other.get("/api/auth/me").status_code == 401
+
+
+def test_change_password_reissues_remember_cookie(client, registered):
+    login(client, remember=True)
+    before = client.get_cookie("remember_token").value
+    change_password(ApiClient(client))
+    after = client.get_cookie("remember_token").value
+    assert after != before
+    client.delete_cookie("session")
+    assert client.get("/api/auth/me").status_code == 200
+
+
+@pytest.mark.parametrize("login_id", ["1", "1:x", "x:1", "", "999:1"])
+def test_malformed_or_unknown_login_ids_are_signed_out(app, db, login_id):
+    from scryapi import load_user
+
+    assert load_user(login_id) is None
