@@ -26,6 +26,9 @@ policy), so don't guess them.
   See the baseline revision.
 - Load data offline: `flask --app scryapi sync-cards --file tests/fixtures/cards_sample.json`
 - Run: `flask --app scryapi run`
+- End-to-end check against a running server: `python scripts/smoke.py [base_url]`. Run it
+  after any change to routes, auth or schemas; pytest alone doesn't exercise a real
+  cookie jar.
 
 ## Testing conventions
 - Fixtures in `tests/conftest.py`: `app` (in-memory SQLite, schema built by running the

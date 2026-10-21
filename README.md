@@ -48,7 +48,17 @@ Settings come from environment variables. A `.env` file is loaded automatically 
 ```sh
 flask --app scryapi db upgrade     # create or upgrade the schema
 flask --app scryapi sync-cards     # download (~25 MB) and import Scryfall Oracle cards
-flask --app scryapi run            # dev server
+flask --app scryapi run --debug    # dev server with auto-reload, http://127.0.0.1:5000
+```
+
+The full sync takes about 10 seconds and leaves ~36,500 cards in `instance/dev.sqlite3`.
+Optional overrides go in `.env` (copy `.env.example`).
+
+To check the whole stack end to end (search, register/login with CSRF, decks, privacy,
+logout), run this against the running server. It creates two throwaway users each run:
+
+```sh
+python scripts/smoke.py                      # default http://127.0.0.1:5000
 ```
 
 Run `sync-cards` again any time. It skips the import when Scryfall's data hasn't
