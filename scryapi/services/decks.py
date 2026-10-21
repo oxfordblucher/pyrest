@@ -32,7 +32,7 @@ def _with_counts(decks: Sequence[Deck]) -> list[tuple[Deck, int]]:
     return [(d, counts.get(d.id, 0)) for d in decks]
 
 
-def _list(stmt: Select[tuple[Deck]], page: int, limit: int) -> DeckPage:
+def _list(stmt: Select[Deck], page: int, limit: int) -> DeckPage:
     stmt = stmt.options(selectinload(Deck.user)).order_by(Deck.updated_at.desc(), Deck.id.desc())
     decks, total = paginate(stmt, page, limit)
     return _with_counts(decks), total
