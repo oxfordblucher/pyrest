@@ -617,7 +617,7 @@ Everything above is implemented and tested. What's left needs the owner:
 2. **Frontend origin:** nothing to code. When the frontend's URL is known, set
    `SCRYAPI_CORS_ORIGINS` (and `SCRYAPI_COOKIE_SAMESITE=None` only if it's on a different
    site). See TDD §8.
-3. **Push and CI (the owner said not yet):** push `m0-foundation` to `origin`, open a PR
+3. **Push and CI (the owner said not yet):** push `v1` to `origin`, open a PR
    and confirm the CI matrix (lint, mypy, tests on SQLite and Postgres) is green. It has
    never run on GitHub.
 4. **Optional review:** read the API contract (TDD §9) as a frontend author would, and
