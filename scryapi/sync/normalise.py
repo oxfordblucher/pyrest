@@ -1,5 +1,7 @@
 """Map Scryfall card objects to `cards` table rows."""
 
+from scryapi.models.card import name_key
+
 # Not real cards: Scryfall's own search hides these by default.
 SKIPPED_LAYOUTS = frozenset({"art_series"})
 
@@ -40,6 +42,7 @@ def normalise_card(raw):
         "scryfall_id": raw["id"],
         "oracle_id": raw.get("oracle_id") or _first_face_value(faces, "oracle_id"),
         "name": raw["name"],
+        "sort_name": name_key(raw["name"]),
         "mana_cost": text_field("mana_cost", " // "),
         "cmc": raw.get("cmc"),
         "type_line": text_field("type_line", " // "),

@@ -25,7 +25,7 @@ def get_backend(dialect_name=None):
 # Search objects are dialect-specific and written by hand in migrations; Alembic
 # autogenerate must never try to create, alter or drop them.
 SEARCH_INDEXES = frozenset(
-    {"ix_cards_search_vector", "ix_cards_name_trgm", "ix_cards_type_line_trgm"}
+    {"ix_cards_search_vector", "ix_cards_sort_name_trgm", "ix_cards_type_line_trgm"}
 )
 
 

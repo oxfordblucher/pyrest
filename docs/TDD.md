@@ -89,7 +89,9 @@ cards
   id              PK int                   (internal; never exposed)
   scryfall_id     text  unique not null    (public id; Scryfall "id" / oracle print id)
   oracle_id       text  index
-  name            text  not null  index    (+ pg_trgm GIN on Postgres)
+  name            text  not null
+  sort_name       text  not null  index    name_key(name): casefolded, accents stripped;
+                                           COLLATE "C" + pg_trgm GIN on Postgres
   mana_cost       text
   cmc             float
   type_line       text
@@ -158,12 +160,16 @@ class SearchBackend(Protocol):
 
 **Postgres (`postgres_fts.py`)**
 - `search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', coalesce(oracle_text, ''))) STORED` with a GIN index. Not declared in the ORM model. `migrations/env.py` excludes it and the search indexes from autogenerate.
-- Results are ordered by name, not by text-search rank, the same as on SQLite. A `name`
-  filter first ranks exact matches, then prefix matches (`services/cards.py:name_rank`).
+- Results are ordered by `(sort_name, id)`, not by text-search rank, the same as on
+  SQLite. `sort_name` compares bytewise on both dialects, so the order never depends on
+  the database locale. A `name` filter first ranks exact matches, then prefix matches
+  (`services/cards.py:name_rank`).
 - Filter: `search_vector @@ websearch_to_tsquery('english', :q)`. `websearch_to_tsquery`
   never raises on user input.
 - `rebuild()` is a no-op.
-- `name`/`type` substring filters use `ILIKE` backed by `pg_trgm` GIN indexes.
+- `name`/`type` substring filters use `ILIKE` backed by `pg_trgm` GIN indexes. The `name`
+  filter matches `name_key(input)` against `sort_name`, so it ignores case, accents and
+  ligatures ("aether" finds "Æther Vial") on both dialects.
 
 Every substring filter escapes `\ % _` and passes `escape='\\'` (AUDIT S6).
 

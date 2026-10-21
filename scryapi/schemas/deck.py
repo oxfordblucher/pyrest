@@ -123,7 +123,7 @@ def dump_deck_summary(deck, card_count):
 
 
 def dump_deck(deck):
-    entries = sorted(deck.entries, key=lambda e: (BOARDS.index(e.board), e.card.name))
+    entries = sorted(deck.entries, key=lambda e: (BOARDS.index(e.board), e.card.sort_name))
     return {
         **dump_deck_summary(deck, sum(e.quantity for e in entries)),
         "description": deck.description,

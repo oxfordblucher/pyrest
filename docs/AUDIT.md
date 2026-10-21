@@ -508,6 +508,45 @@ Most of these disappear naturally in M0–M3; this item is the final check.
 
 ---
 
+## M5 — Owner decisions (2026-10-20)
+
+Decided by the owner: frontend origin is undecided (so make it configurable), add
+change-password but no email reset, implement full deck legality, don't push yet.
+Hosting is deferred.
+
+### [x] D1 · P2 · Identical name ordering on SQLite and Postgres
+Add `cards.sort_name` (casefolded, accents stripped, computed at import) with a bytewise
+collation (`COLLATE "C"` on Postgres), and order by `(sort_name, id)` everywhere. The
+fixture's order must be identical on both dialects. Replaces hand-off item 5.
+
+### [ ] A1 · P1 · Change password; sign out other sessions
+`POST /api/auth/password {current_password, new_password}`: 401 on a wrong current
+password, same 12–128 rule, starts a fresh session. A per-user `session_version` is
+embedded in the Flask-Login id, so the change invalidates every other session and
+remember-me cookie.
+
+### [ ] F1 · P2 · Configurable cross-origin frontend
+`SCRYAPI_CORS_ORIGINS` (comma-separated, empty by default) enables CORS with credentials
+for exactly those origins and adds them to `WTF_CSRF_TRUSTED_ORIGINS`.
+`SCRYAPI_COOKIE_SAMESITE` (`Lax` default; `None` forces `Secure`). With nothing set,
+behaviour is unchanged.
+
+### [ ] L1 · P2 · Store card legalities; constrain deck format
+Import Scryfall `legalities` into `cards.legalities` (JSON). `Deck.format` must be one
+of Scryfall's format keys or null. Commander-style decks get a `commander` board.
+
+### [ ] L2 · P2 · Deck legality report
+`GET /api/decks/<id>` includes `legality: {format, legal, problems: [{code, message,
+card?}]}`. Report, don't block: saving an illegal deck still succeeds. Rules: per-card
+legality, Vintage restricted list, constructed size/sideboard/4-copy limits (basic lands
+and "any number" cards exempt), commander-style size, singleton, commander count and
+color identity.
+
+### [ ] Q8 (part 2) · Typing
+See M4. Type hints on public functions, plus a lenient `mypy scryapi` job in CI.
+
+---
+
 ## Hand-off: decisions and work for the human pass
 
 Everything above is implemented and tested. These items need an owner's decision or
@@ -523,9 +562,7 @@ access the agents don't have:
 3. **Password policy / reset / email verification (PRD open Q2).** The current rule is
    12–128 characters, with no reset flow.
 4. **Deck format validation (PRD open Q3)** isn't implemented. `format` is free text.
-5. **Collation:** Postgres sorts names with the database's locale (`"_____"` first on
-   `en_US.UTF-8`), while SQLite sorts bytewise. To make them identical, pin
-   `COLLATE "C"` on `ORDER BY name`.
+5. ~~**Collation**~~: resolved by D1 (M5).
 6. **Deep pagination:** `OFFSET` gets slower towards the end of the catalogue (about
    90 ms at page 1500). Consider keyset pagination if clients really page that far.
 7. **Push and CI:** push `m0-foundation` to `origin`, open a PR, and confirm the CI

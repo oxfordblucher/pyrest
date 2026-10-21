@@ -1,6 +1,7 @@
 from scryapi.errors import ApiError
 from scryapi.extensions import db
 from scryapi.models import Card
+from scryapi.models.card import name_key
 from scryapi.search import get_backend
 from scryapi.services import contains, paginate, starts_with
 
@@ -9,20 +10,21 @@ def search_cards(query):
     """Return (cards, total) for a CardQuery. Only active cards are listed."""
     stmt = db.select(Card).where(Card.is_active)
     if query.name:
-        stmt = stmt.where(contains(Card.name, query.name)).order_by(name_rank(query.name))
+        key = name_key(query.name)
+        stmt = stmt.where(contains(Card.sort_name, key)).order_by(name_rank(key))
     if query.type:
         stmt = stmt.where(contains(Card.type_line, query.type))
     if query.text:
         stmt = get_backend().apply_text_filter(stmt, query.text)
-    stmt = stmt.order_by(Card.name, Card.id)
+    stmt = stmt.order_by(Card.sort_name, Card.id)
     return paginate(stmt, query.page, query.limit)
 
 
-def name_rank(name):
+def name_rank(key):
     """Exact name matches first, then names starting with the term, then the rest."""
     return db.case(
-        (db.func.lower(Card.name) == name.lower(), 0),
-        (starts_with(Card.name, name), 1),
+        (Card.sort_name == key, 0),
+        (starts_with(Card.sort_name, key), 1),
         else_=2,
     )
 

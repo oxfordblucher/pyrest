@@ -2,6 +2,9 @@
 
 import pytest
 
+from scryapi.models import Card
+from scryapi.models.card import name_key
+
 pytestmark = pytest.mark.usefixtures("cards")
 
 SAMPLE_SIZE = 21
@@ -17,7 +20,7 @@ def test_list_cards_defaults(client):
     assert resp.status_code == 200
     assert (body["page"], body["limit"], body["total"]) == (1, 20, SAMPLE_SIZE)
     assert len(body["results"]) == 20
-    assert names(resp) == sorted(names(resp))
+    assert names(resp) == sorted(names(resp), key=name_key)
 
 
 def test_trailing_slash_is_accepted(client):
@@ -155,8 +158,6 @@ def test_name_search_ranks_prefix_matches_first(client):
 
 
 def test_name_search_ranks_exact_match_first(client, db):
-    from scryapi.models import Card
-
     db.session.add_all(
         [
             Card(scryfall_id="00000000-0000-0000-0000-000000000001", name="A Lightning Bolt"),
@@ -166,3 +167,43 @@ def test_name_search_ranks_exact_match_first(client, db):
     db.session.commit()
     resp = client.get("/api/cards", query_string={"name": "LIGHTNING BOLT"})
     assert names(resp) == ["Lightning Bolt", "Lightning Bolter", "A Lightning Bolt"]
+
+
+@pytest.mark.parametrize(
+    ("name", "key"),
+    [
+        ("Lightning Bolt", "lightning bolt"),
+        ("Jötun Grunt", "jotun grunt"),
+        ("Æther Vial", "aether vial"),
+        ("Lim-Dûl's Vault", "lim-dul's vault"),
+    ],
+)
+def test_name_key(name, key):
+    assert name_key(name) == key
+
+
+def test_name_search_ignores_accents_and_ligatures(client, db):
+    db.session.add_all(
+        [
+            Card(scryfall_id="00000000-0000-0000-0000-000000000003", name="Jötun Grunt"),
+            Card(scryfall_id="00000000-0000-0000-0000-000000000004", name="Æther Vial"),
+        ]
+    )
+    db.session.commit()
+    assert names(client.get("/api/cards?name=jotun")) == ["Jötun Grunt"]
+    assert names(client.get("/api/cards?name=aether")) == ["Æther Vial"]
+    assert names(client.get("/api/cards?name=JÖTUN")) == ["Jötun Grunt"]
+
+
+def test_ordering_is_bytewise_on_sort_name(client, db):
+    """The same order on SQLite and Postgres, regardless of the database locale."""
+    db.session.add_all(
+        [
+            Card(scryfall_id="00000000-0000-0000-0000-000000000005", name="_____ Goblin"),
+            Card(scryfall_id="00000000-0000-0000-0000-000000000006", name="Island of Wak-Wak"),
+            Card(scryfall_id="00000000-0000-0000-0000-000000000007", name="Island Sanctuary"),
+        ]
+    )
+    db.session.commit()
+    resp = client.get("/api/cards", query_string={"limit": 50})
+    assert names(resp) == sorted(names(resp), key=lambda n: name_key(n).encode())
