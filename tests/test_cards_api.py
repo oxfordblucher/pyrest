@@ -145,3 +145,24 @@ def test_multi_face_cards_are_searchable(client, text, expected):
 def test_like_wildcards_are_literal(client, value):
     resp = client.get("/api/cards", query_string={"name": value})
     assert names(resp) == []
+
+
+def test_name_search_ranks_prefix_matches_first(client):
+    resp = client.get("/api/cards", query_string={"name": "d", "limit": 50})
+    prefix = ["Delver of Secrets // Insectile Aberration", "Demonic Tutor", "Dryad Arbor"]
+    assert names(resp)[:3] == prefix
+    assert names(resp)[3:] == sorted(names(resp)[3:])
+
+
+def test_name_search_ranks_exact_match_first(client, db):
+    from scryapi.models import Card
+
+    db.session.add_all(
+        [
+            Card(scryfall_id="00000000-0000-0000-0000-000000000001", name="A Lightning Bolt"),
+            Card(scryfall_id="00000000-0000-0000-0000-000000000002", name="Lightning Bolter"),
+        ]
+    )
+    db.session.commit()
+    resp = client.get("/api/cards", query_string={"name": "LIGHTNING BOLT"})
+    assert names(resp) == ["Lightning Bolt", "Lightning Bolter", "A Lightning Bolt"]

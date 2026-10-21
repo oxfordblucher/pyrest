@@ -2,20 +2,29 @@ from scryapi.errors import ApiError
 from scryapi.extensions import db
 from scryapi.models import Card
 from scryapi.search import get_backend
-from scryapi.services import contains, paginate
+from scryapi.services import contains, paginate, starts_with
 
 
 def search_cards(query):
     """Return (cards, total) for a CardQuery. Only active cards are listed."""
     stmt = db.select(Card).where(Card.is_active)
     if query.name:
-        stmt = stmt.where(contains(Card.name, query.name))
+        stmt = stmt.where(contains(Card.name, query.name)).order_by(name_rank(query.name))
     if query.type:
         stmt = stmt.where(contains(Card.type_line, query.type))
     if query.text:
         stmt = get_backend().apply_text_filter(stmt, query.text)
     stmt = stmt.order_by(Card.name, Card.id)
     return paginate(stmt, query.page, query.limit)
+
+
+def name_rank(name):
+    """Exact name matches first, then names starting with the term, then the rest."""
+    return db.case(
+        (db.func.lower(Card.name) == name.lower(), 0),
+        (starts_with(Card.name, name), 1),
+        else_=2,
+    )
 
 
 def get_card(scryfall_id):

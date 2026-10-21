@@ -158,7 +158,8 @@ class SearchBackend(Protocol):
 
 **Postgres (`postgres_fts.py`)**
 - `search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', coalesce(oracle_text, ''))) STORED` with a GIN index. Not declared in the ORM model. `migrations/env.py` excludes it and the search indexes from autogenerate.
-- Results are ordered by name, not by rank, the same as on SQLite.
+- Results are ordered by name, not by text-search rank, the same as on SQLite. A `name`
+  filter first ranks exact matches, then prefix matches (`services/cards.py:name_rank`).
 - Filter: `search_vector @@ websearch_to_tsquery('english', :q)`. `websearch_to_tsquery`
   never raises on user input.
 - `rebuild()` is a no-op.

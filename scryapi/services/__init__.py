@@ -10,6 +10,10 @@ def contains(column, value):
     return column.ilike(f"%{escape_like(value)}%", escape="\\")
 
 
+def starts_with(column, value):
+    return column.ilike(f"{escape_like(value)}%", escape="\\")
+
+
 def paginate(stmt, page, limit):
     """Return (items, total) for a select of ORM entities."""
     total = db.session.execute(

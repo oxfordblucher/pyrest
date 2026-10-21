@@ -56,7 +56,8 @@ can register, build decks from the catalogue, and optionally share decks publicl
   `type` (substring), `text` (full-text over rules text). Filters combine with AND.
 - **FR-C2** Pagination: `page` ≥ 1, `limit` 1–50 (default 20). Invalid values return
   400 with a field-level message, not silent defaults.
-- **FR-C3** Results sorted by name ascending by default.
+- **FR-C3** Results sorted by name ascending. When filtering by `name`, exact name
+  matches come first, then names starting with the term, then the rest (each group by name).
 - **FR-C4** Get a single card by stable Scryfall ID.
 - **FR-C5** Multi-face cards (transform, MDFC, split, adventure) are searchable by all
   faces' text and expose face details.
