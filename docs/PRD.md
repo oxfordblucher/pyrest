@@ -44,8 +44,8 @@ can register, build decks from the catalogue, and optionally share decks publicl
 - Card prices, printings/sets, images hosting (link to Scryfall image URIs instead).
 - Format legality validation of decks (**[OPEN]** candidate for v2).
 - Social features (likes, comments, follows).
-- A frontend. The API is consumed by a separate client (**[OPEN]**: same-origin web
-  app vs. other origins — affects cookie/CORS config, see TDD §8).
+- A frontend. The API is consumed by a separate browser client, same-origin or not
+  (decided 2026-10-20: configurable, see TDD §8).
 - OAuth / third-party login, password reset by email, email verification (decided
   2026-10-20: not in v1).
 - Admin UI.
@@ -119,7 +119,8 @@ Mirrors [AUDIT](AUDIT.md) milestones; details in [TDD §12](TDD.md#12-milestones
 
 ## 10. Open questions
 
-1. **[OPEN]** Will the frontend be same-origin? If not, cookies need `SameSite=None; Secure` and CORS with credentials — reconsider tokens.
+1. **Decided 2026-10-20:** frontend origin still unknown, so CORS and cookie SameSite are
+   configuration (`SCRYAPI_CORS_ORIGINS`, `SCRYAPI_COOKIE_SAMESITE`), not code.
 2. **Decided 2026-10-20:** keep 12–128 characters, add change-password, no email reset
    or verification in v1.
 3. **[OPEN]** Deck format validation (Commander singleton, 60-card min) — v1 or v2?

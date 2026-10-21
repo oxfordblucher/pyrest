@@ -10,15 +10,21 @@ def _database_url(default=None):
     return url
 
 
+# Cookie SameSite policy. "None" is only needed when the frontend is on a different
+# *site* (registrable domain); browsers then require Secure, so it is forced on.
+_SAMESITE = os.environ.get("SCRYAPI_COOKIE_SAMESITE", "Lax").capitalize()
+_SAMESITE_REQUIRES_SECURE = _SAMESITE == "None"
+
+
 class BaseConfig:
     SQLALCHEMY_DATABASE_URI = _database_url("sqlite:///dev.sqlite3")
     SECRET_KEY = os.environ.get("SECRET_KEY")
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = _SAMESITE
+    SESSION_COOKIE_SECURE = _SAMESITE_REQUIRES_SECURE
     REMEMBER_COOKIE_HTTPONLY = True
-    REMEMBER_COOKIE_SAMESITE = "Lax"
-    REMEMBER_COOKIE_SECURE = False
+    REMEMBER_COOKIE_SAMESITE = _SAMESITE
+    REMEMBER_COOKIE_SECURE = _SAMESITE_REQUIRES_SECURE
     REMEMBER_COOKIE_DURATION = timedelta(days=30)  # Flask-Login defaults to a year
     # Largest request body accepted; the biggest legitimate one (a 250-entry deck) is ~25 KB.
     MAX_CONTENT_LENGTH = 256 * 1024
@@ -33,12 +39,15 @@ class BaseConfig:
     SCRYAPI_RATELIMIT_AUTH = os.environ.get("SCRYAPI_RATELIMIT_AUTH", "10/minute")
     # Number of reverse proxies in front of the app that set X-Forwarded-For/-Proto.
     SCRYAPI_PROXY_COUNT = int(os.environ.get("SCRYAPI_PROXY_COUNT", "0"))
+    # Comma-separated origins of a frontend on another origin (enables CORS with cookies).
+    SCRYAPI_CORS_ORIGINS = os.environ.get("SCRYAPI_CORS_ORIGINS", "")
     # Where downloaded bulk files go; defaults to <instance_path>/data.
     SCRYAPI_DATA_DIR = os.environ.get("SCRYAPI_DATA_DIR")
 
     @classmethod
     def validate(cls):
-        pass
+        if cls.SESSION_COOKIE_SAMESITE not in ("Lax", "Strict", "None"):
+            raise RuntimeError("SCRYAPI_COOKIE_SAMESITE must be Lax, Strict or None")
 
 
 class DevConfig(BaseConfig):
@@ -62,6 +71,7 @@ class ProdConfig(BaseConfig):
 
     @classmethod
     def validate(cls):
+        super().validate()
         missing = [k for k in ("SECRET_KEY", "SQLALCHEMY_DATABASE_URI") if not getattr(cls, k)]
         if missing:
             raise RuntimeError(f"Missing required production config: {', '.join(missing)}")

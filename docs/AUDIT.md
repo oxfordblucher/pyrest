@@ -525,7 +525,7 @@ password, same 12–128 rule, starts a fresh session. A per-user `session_versio
 embedded in the Flask-Login id, so the change invalidates every other session and
 remember-me cookie.
 
-### [ ] F1 · P2 · Configurable cross-origin frontend
+### [x] F1 · P2 · Configurable cross-origin frontend
 `SCRYAPI_CORS_ORIGINS` (comma-separated, empty by default) enables CORS with credentials
 for exactly those origins and adds them to `WTF_CSRF_TRUSTED_ORIGINS`.
 `SCRYAPI_COOKIE_SAMESITE` (`Lax` default; `None` forces `Secure`). With nothing set,
@@ -556,9 +556,9 @@ access the agents don't have:
    `SECRET_KEY`, `RATELIMIT_STORAGE_URI` (Redis), `SCRYAPI_PROXY_COUNT` and a persistent
    `SCRYAPI_DATA_DIR`. Run `flask db upgrade` as a release step and schedule
    `flask sync-cards` weekly.
-2. **Frontend origin (PRD open Q1).** Cookies are `SameSite=Lax` and there's no CORS
-   config, which assumes a same-origin frontend. A cross-origin client needs CORS with
-   credentials and `SameSite=None; Secure`, or a move to tokens (TDD §13).
+2. **Frontend origin:** configurable since F1 (M5). When the frontend's URL is known,
+   set `SCRYAPI_CORS_ORIGINS` (and `SCRYAPI_COOKIE_SAMESITE=None` only if it's on a
+   different site). Nothing to set if it's served from the API's host.
 3. ~~**Password policy**~~: decided; change-password implemented in A1 (M5).
 4. **Deck format validation (PRD open Q3)** isn't implemented. `format` is free text.
 5. ~~**Collation**~~: resolved by D1 (M5).

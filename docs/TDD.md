@@ -226,12 +226,13 @@ flask sync-cards [--file PATH] [--force]
 | `SECRET_KEY` | fixed dev value | fixed test value | env, **required**, ≥ 32 bytes |
 | `SESSION_COOKIE_SECURE` | False | False | True |
 | `SESSION_COOKIE_HTTPONLY` | True | True | True |
-| `SESSION_COOKIE_SAMESITE` | Lax | Lax | Lax (see PRD open Q1) |
+| `SESSION_COOKIE_SAMESITE` (`SCRYAPI_COOKIE_SAMESITE`) | Lax | Lax | Lax; `None` only for a cross-*site* frontend (forces `Secure`) |
 | `REMEMBER_COOKIE_*` | mirror the session settings | | |
 | `WTF_CSRF_ENABLED` | True | True (tests fetch a token) | True |
 | `RATELIMIT_STORAGE_URI` | memory:// | memory:// (disabled except in rate-limit tests) | redis:// |
 | `SCRYAPI_RATELIMIT_SEARCH` / `_AUTH` | 60/minute, 10/minute | same | tune per traffic |
 | `SCRYAPI_PROXY_COUNT` | 0 | 0 | number of trusted proxies (enables `ProxyFix`) |
+| `SCRYAPI_CORS_ORIGINS` | empty (CORS off) | empty | the frontend's origin(s), if it isn't served by the API's host |
 | `MAX_CONTENT_LENGTH` | 256 KB | 256 KB | 256 KB |
 | `TEST_DATABASE_URL` | – | unset → in-memory SQLite; Postgres URL in CI | – |
 | `SCRYAPI_DATA_DIR` | `<instance>/data` | tmp dir | volume path |
@@ -263,6 +264,24 @@ flask sync-cards [--file PATH] [--force]
   cascade behaviour matches Postgres.
 - Rate limits use Flask-Limiter: `/api/cards*` 60/min/IP and
   `/api/auth/login|register|password` 10/min/IP (one shared bucket).
+
+**Cross-origin frontend (`scryapi/cors.py`).** The owner left the frontend's origin open,
+so it's configuration, not code:
+
+- *Same origin* (a proxy routes `/api` to Flask): set nothing.
+- *Different origin, same site* (`app.example.com` → `api.example.com`, or a Vite dev
+  server on `localhost:5173` → `localhost:5000`): set `SCRYAPI_CORS_ORIGINS`. `Lax`
+  cookies still work because the site matches.
+- *Different site* (`app.com` → `api.net`): also set `SCRYAPI_COOKIE_SAMESITE=None`.
+  Browsers that block third-party cookies may still refuse them; prefer one site.
+
+With origins configured, responses to those origins carry
+`Access-Control-Allow-Origin: <origin>`, `-Allow-Credentials: true` and
+`-Expose-Headers: X-CSRFToken`, and preflights are answered and not rate-limited.
+Flask-WTF's HTTPS Referer check (same host only) is replaced by an equivalent check that
+also accepts the configured origins, using `Origin` and falling back to `Referer`.
+Entries must be bare origins; `*` is rejected at startup because it's incompatible with
+credentials.
 
 ## 9. API contract (v1)
 
@@ -373,8 +392,8 @@ the deck is left unchanged. Soft-deleted cards (`is_active=false`) stay in decks
 ## 13. Alternatives considered
 
 - **JWT bearer tokens instead of sessions.** Rejected by the owner for v1. Sessions are
-  simpler to revoke and fit a same-origin frontend. Revisit if the PRD's open Q1 resolves
-  to cross-origin clients.
+  simpler to revoke and, with opt-in CORS (§8), serve same-origin and cross-origin
+  browser frontends. Revisit only for non-browser clients.
 - **Postgres everywhere, including dev and tests.** This gives the best parity but slows
   the agent feedback loop. Instead we keep SQLite as the default and run Postgres in the
   CI matrix.

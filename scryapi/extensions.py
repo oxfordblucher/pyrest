@@ -1,5 +1,6 @@
 import sqlite3
 
+from flask import request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
@@ -21,6 +22,12 @@ login_manager = LoginManager()
 csrf = CSRFProtect()
 # Keyed on client IP; behind a reverse proxy set SCRYAPI_PROXY_COUNT so this is the real one.
 limiter = Limiter(key_func=get_remote_address)
+
+
+@limiter.request_filter
+def _skip_cors_preflight():
+    # Browsers send a preflight before cross-origin mutations; don't charge for it.
+    return request.method == "OPTIONS"
 
 
 @event.listens_for(Engine, "connect")

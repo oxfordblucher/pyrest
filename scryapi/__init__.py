@@ -3,7 +3,7 @@ from pathlib import Path
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scryapi import models  # noqa: F401  (registers models on db.metadata)
+from scryapi import cors, models  # noqa: F401  (models registers itself on db.metadata)
 from scryapi.config import get_config
 from scryapi.errors import error_response, register_error_handlers
 from scryapi.extensions import csrf, db, limiter, login_manager, migrate
@@ -30,6 +30,7 @@ def create_app(config=None):
     csrf.init_app(app)
     login_manager.init_app(app)
     limiter.init_app(app)
+    cors.init_app(app)
 
     register_error_handlers(app)
     app.register_blueprint(authbp)

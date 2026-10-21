@@ -42,6 +42,8 @@ Settings come from environment variables. A `.env` file is loaded automatically 
 | `SCRYAPI_RATELIMIT_SEARCH` | `60/minute` | per client IP, `/api/cards*` |
 | `SCRYAPI_RATELIMIT_AUTH` | `10/minute` | per client IP, login, register and change-password combined |
 | `SCRYAPI_PROXY_COUNT` | `0` | trusted reverse proxies in front of the app |
+| `SCRYAPI_CORS_ORIGINS` | empty | comma-separated frontend origins, e.g. `http://localhost:5173`, if the frontend isn't served from the API's host. See [TDD §8](docs/TDD.md#8-configuration--security) |
+| `SCRYAPI_COOKIE_SAMESITE` | `Lax` | `None` only if the frontend is on a different site; forces `Secure` |
 
 ## Running
 
