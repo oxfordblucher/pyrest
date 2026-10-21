@@ -1,49 +1,66 @@
-from datetime import UTC, datetime
+from __future__ import annotations
 
-from scryapi.extensions import db
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import false as sql_false
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from scryapi.extensions import Model
+
+if TYPE_CHECKING:
+    from scryapi.models.card import Card
+    from scryapi.models.user import User
 
 # Display order. "commander" holds commander-kind leaders (see scryapi/formats.py).
 BOARDS = ("commander", "main", "side")
 
 
-def _now():
+def _now() -> datetime:
     return datetime.now(UTC)
 
 
-class Deck(db.Model):
+class Deck(Model):
     __tablename__ = "decks"
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    format = db.Column(db.String(50))  # a key of scryapi.formats.FORMATS, or null
-    is_public = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_now)
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_now, onupdate=_now)
-
-    __table_args__ = (db.Index("ix_decks_public_updated", "is_public", "updated_at"),)
-
-    user = db.relationship("User", back_populates="decks")
-    entries = db.relationship(
-        "DeckCard", back_populates="deck", cascade="all, delete-orphan", passive_deletes=True
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    format: Mapped[str | None] = mapped_column(String(50))  # a scryapi.formats.FORMATS key
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sql_false())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
     )
 
+    __table_args__ = (Index("ix_decks_public_updated", "is_public", "updated_at"),)
 
-class DeckCard(db.Model):
+    user: Mapped[User] = relationship(back_populates="decks")
+    entries: Mapped[list[DeckCard]] = relationship(
+        back_populates="deck", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class DeckCard(Model):
     """A card in a deck: quantity per board. Unique per (deck, card, board)."""
 
     __tablename__ = "deck_cards"
-    deck_id = db.Column(db.Integer, db.ForeignKey("decks.id", ondelete="CASCADE"), primary_key=True)
-    card_id = db.Column(db.Integer, db.ForeignKey("cards.id"), primary_key=True, index=True)
-    board = db.Column(db.String(16), primary_key=True)
-    quantity = db.Column(db.Integer, nullable=False)
+    deck_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("decks.id", ondelete="CASCADE"), primary_key=True
+    )
+    card_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("cards.id"), primary_key=True, index=True
+    )
+    board: Mapped[str] = mapped_column(String(16), primary_key=True)
+    quantity: Mapped[int] = mapped_column(Integer)
 
     __table_args__ = (
-        db.CheckConstraint("quantity >= 1", name="ck_deck_cards_quantity_positive"),
-        db.CheckConstraint("board IN ('commander', 'main', 'side')", name="ck_deck_cards_board"),
+        CheckConstraint("quantity >= 1", name="ck_deck_cards_quantity_positive"),
+        CheckConstraint("board IN ('commander', 'main', 'side')", name="ck_deck_cards_board"),
     )
 
-    deck = db.relationship("Deck", back_populates="entries")
-    card = db.relationship("Card")
+    deck: Mapped[Deck] = relationship(back_populates="entries")
+    card: Mapped[Card] = relationship()

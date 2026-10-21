@@ -23,7 +23,7 @@ def create_app(config=None):
     app.config.from_object(config)
     app.url_map.strict_slashes = False
     if proxies := app.config["SCRYAPI_PROXY_COUNT"]:
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxies, x_proto=proxies)
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxies, x_proto=proxies)  # type: ignore[method-assign]
 
     db.init_app(app)
     migrate.init_app(app, db, directory=str(MIGRATIONS_DIR))

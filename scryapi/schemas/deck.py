@@ -1,8 +1,11 @@
 from dataclasses import dataclass
+from typing import Any
 
-from scryapi.formats import FORMATS
+from scryapi.errors import ValidationError
+from scryapi.formats import FORMATS, Format
+from scryapi.models import Deck
 from scryapi.models.deck import BOARDS
-from scryapi.schemas import Errors, iso
+from scryapi.schemas import Errors, Json, iso
 from scryapi.schemas.card import dump_card_summary
 from scryapi.services.legality import check_deck
 
@@ -18,7 +21,7 @@ _UNSET = object()
 class DeckChanges:
     """Fields to set on a deck: only the ones present in the request body."""
 
-    fields: dict
+    fields: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -28,7 +31,9 @@ class DeckEntry:
     board: str
 
 
-def _optional_text(body, field, max_length, errors, required=False):
+def _optional_text(
+    body: Json, field: str, max_length: int, errors: Errors, required: bool = False
+) -> Any:
     value = body.get(field, _UNSET)
     if value is _UNSET:
         if required:
@@ -49,7 +54,7 @@ def _optional_text(body, field, max_length, errors, required=False):
     return value or None
 
 
-def _parse_format(body, errors):
+def _parse_format(body: Json, errors: Errors) -> Any:
     value = body.get("format", _UNSET)
     if value is _UNSET or value is None:
         return value
@@ -62,7 +67,7 @@ def _parse_format(body, errors):
     return key
 
 
-def parse_deck_fields(body, partial):
+def parse_deck_fields(body: Json, partial: bool) -> DeckChanges:
     """Validate deck metadata. `partial=True` for PATCH (every field optional)."""
     errors = Errors()
     values = {
@@ -83,17 +88,18 @@ def parse_deck_fields(body, partial):
     return DeckChanges(fields={k: v for k, v in values.items() if v is not _UNSET})
 
 
-def parse_deck_cards(body):
+def parse_deck_cards(body: Json) -> list[DeckEntry]:
     errors = Errors()
     cards = body.get("cards")
     if not isinstance(cards, list):
-        errors.add("cards", "must be a list")
-        errors.raise_if_any()
+        raise ValidationError([{"field": "cards", "message": "must be a list"}])
     if len(cards) > MAX_ENTRIES:
-        errors.add("cards", f"must have at most {MAX_ENTRIES} entries")
-        errors.raise_if_any()
+        raise ValidationError(
+            [{"field": "cards", "message": f"must have at most {MAX_ENTRIES} entries"}]
+        )
 
-    entries, seen = [], set()
+    entries: list[DeckEntry] = []
+    seen: set[tuple[str, str]] = set()
     for i, item in enumerate(cards):
         field = f"cards[{i}]"
         if not isinstance(item, dict):
@@ -123,7 +129,7 @@ def parse_deck_cards(body):
     return entries
 
 
-def dump_deck_summary(deck, card_count):
+def dump_deck_summary(deck: Deck, card_count: int) -> Json:
     return {
         "id": deck.id,
         "name": deck.name,
@@ -136,7 +142,7 @@ def dump_deck_summary(deck, card_count):
     }
 
 
-def dump_format(fmt):
+def dump_format(fmt: Format) -> Json:
     return {
         "key": fmt.key,
         "name": fmt.name,
@@ -147,7 +153,7 @@ def dump_format(fmt):
     }
 
 
-def dump_deck(deck):
+def dump_deck(deck: Deck) -> Json:
     entries = sorted(deck.entries, key=lambda e: (BOARDS.index(e.board), e.card.sort_name))
     return {
         **dump_deck_summary(deck, sum(e.quantity for e in entries)),

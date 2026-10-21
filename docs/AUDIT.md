@@ -471,8 +471,8 @@ storage backend Redis in prod, memory in dev.
 GitHub Actions: ruff, pytest with coverage; matrix SQLite + Postgres 16 service
 container; fail under 85% line coverage on `scryapi/`.
 
-### [ ] Q8 (part 2) · Typing
-Type hints on public functions; optional `mypy --strict` on `scryapi/sync` and
+### [x] Q8 (part 2) · Typing
+Done in M5. Type hints on public functions; optional `mypy --strict` on `scryapi/sync` and
 `scryapi/search`.
 
 ### [x] Q5 · Dead code sweep
@@ -503,8 +503,7 @@ Most of these disappear naturally in M0–M3; this item is the final check.
   response, and a remember-me cookie that lasts 30 days instead of Flask-Login's
   default of a year.
 - **Q5:** `vulture` found no dead code (every hit was a framework-registered callback).
-- **Q8 part 2 (typing)** is left for the human pass. It's optional and doesn't affect
-  behaviour.
+- **Q8 part 2 (typing)** was done in M5.
 
 ---
 
@@ -542,32 +541,62 @@ legality, Vintage restricted list, constructed size/sideboard/4-copy limits (bas
 and "any number" cards exempt), commander-style size, singleton, commander count and
 color identity.
 
-### [ ] Q8 (part 2) · Typing
+### [x] Q8 (part 2) · Typing
 See M4. Type hints on public functions, plus a lenient `mypy scryapi` job in CI.
+
+### M5 completion notes
+
+- **D1:** `cards.sort_name` (`name_key()`: casefolded, accents and ligatures folded,
+  `COLLATE "C"` on Postgres) drives ordering and the name filter, so SQLite and Postgres
+  return the same order and "aether" finds "Æther Vial". Name searches rank exact, then
+  prefix, then substring matches. The migration backfills 36.5k rows in about 4 s.
+- **SQLite migration fix (found while testing L1):** batch-mode rebuilds of `cards`
+  failed on any database with decks, because SQLite enforced the `deck_cards` foreign key
+  during the table swap. That included D1's upgrade. `migrations/env.py` now turns FK
+  enforcement off for the run, checks `PRAGMA foreign_key_check` at the end and turns it
+  back on. Regression tests cover both directions.
+- **A1:** the login id is `"<id>:<session_version>"`. A password change bumps the version,
+  which signs out every other session and remember-me cookie with no server-side session
+  store. Cookies issued before this change (plain ids) are signed out once.
+- **F1:** `SCRYAPI_CORS_ORIGINS` and `SCRYAPI_COOKIE_SAMESITE`. With CORS on, Flask-WTF's
+  same-host HTTPS Referer check is replaced by one that also accepts the configured
+  origins. Preflights skip the rate limiter: the blueprint-wide search limit was counting
+  them, while per-route limits weren't.
+- **L1/L2:** legality for all 23 Scryfall formats, reported rather than enforced; the
+  rules are in TDD §9. Checked against real decks on the full catalogue, covering partner,
+  Background and Doctor pairings, the Vintage restricted list, Relentless Rats and color
+  identity. A 100-card deck takes 31 ms to save and 8 ms to load. Known gaps: Pauper
+  Commander's "uncommon" rule isn't checked (rarity isn't stored), and Scryfall's `tlr`
+  format gets per-card legality only because its rules couldn't be confirmed. After
+  upgrading an existing database, run `flask sync-cards --force` once to load legalities.
+- **Q8:** models use SQLAlchemy 2 `Mapped[...]` (the migration-drift test confirms the
+  schema is unchanged). mypy is clean, with full annotations required in services,
+  schemas, search, sync, models and formats, and it runs in the CI lint job.
+- **Not done, deliberately:** keyset pagination. Deep `OFFSET` pages take about 90 ms,
+  well inside NFR-1, and cursors would change the API contract.
+- **Verified:** 260 tests on SQLite and on Postgres 17, plus `scripts/smoke.py` against
+  the dev server on both, including a SQLite database upgraded from the M4 schema.
 
 ---
 
 ## Hand-off: decisions and work for the human pass
 
-Everything above is implemented and tested. These items need an owner's decision or
-access the agents don't have:
+Everything above is implemented and tested. What's left needs the owner:
 
-1. **Hosting (PRD open Q4).** Pick a platform, then configure `DATABASE_URL`,
-   `SECRET_KEY`, `RATELIMIT_STORAGE_URI` (Redis), `SCRYAPI_PROXY_COUNT` and a persistent
-   `SCRYAPI_DATA_DIR`. Run `flask db upgrade` as a release step and schedule
-   `flask sync-cards` weekly.
-2. **Frontend origin:** configurable since F1 (M5). When the frontend's URL is known,
-   set `SCRYAPI_CORS_ORIGINS` (and `SCRYAPI_COOKIE_SAMESITE=None` only if it's on a
-   different site). Nothing to set if it's served from the API's host.
-3. ~~**Password policy**~~: decided; change-password implemented in A1 (M5).
-4. ~~**Deck format validation**~~: implemented as L1/L2 (M5).
-5. ~~**Collation**~~: resolved by D1 (M5).
-6. **Deep pagination:** `OFFSET` gets slower towards the end of the catalogue (about
-   90 ms at page 1500). Consider keyset pagination if clients really page that far.
-7. **Push and CI:** push `m0-foundation` to `origin`, open a PR, and confirm the CI
-   matrix is green.
-8. **Optional:** type hints and mypy (Q8 part 2), and a review of the API docs for
-   public consumers.
+1. **Hosting (PRD open Q4, deferred by the owner).** Pick a platform, then configure
+   `DATABASE_URL`, `SECRET_KEY`, `RATELIMIT_STORAGE_URI` (Redis), `SCRYAPI_PROXY_COUNT`
+   and a persistent `SCRYAPI_DATA_DIR`. Run `flask db upgrade` as a release step and
+   schedule `flask sync-cards` weekly.
+2. **Frontend origin:** nothing to code. When the frontend's URL is known, set
+   `SCRYAPI_CORS_ORIGINS` (and `SCRYAPI_COOKIE_SAMESITE=None` only if it's on a different
+   site). See TDD §8.
+3. **Push and CI (the owner said not yet):** push `m0-foundation` to `origin`, open a PR
+   and confirm the CI matrix (lint, mypy, tests on SQLite and Postgres) is green. It has
+   never run on GitHub.
+4. **Optional review:** read the API contract (TDD §9) as a frontend author would, and
+   spot-check the legality rules against formats you play. Confirm PRD open Q5: cards
+   Scryfall drops are soft-deleted (hidden from search, kept in decks), as the TDD
+   assumed.
 
 ---
 

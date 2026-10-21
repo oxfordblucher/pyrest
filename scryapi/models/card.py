@@ -1,14 +1,17 @@
 import unicodedata
+from datetime import datetime
+from typing import Any
 
-from sqlalchemy.orm import validates
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String, Text, true
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
-from scryapi.extensions import db
+from scryapi.extensions import Model
 
 # Letters NFKD leaves alone but people type without the ligature or stroke.
 _FOLDS = str.maketrans({"æ": "ae", "œ": "oe", "ø": "o", "ð": "d", "þ": "th", "ß": "ss"})
 
 
-def name_key(name):
+def name_key(name: str) -> str:
     """Casefolded, accent-free form of a card name, used for name search and ordering.
 
     Compared bytewise (COLLATE "C" on Postgres), so ordering is identical on SQLite and
@@ -18,7 +21,7 @@ def name_key(name):
     return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 
-class Card(db.Model):
+class Card(Model):
     """One Oracle card from Scryfall's `oracle_cards` bulk data.
 
     `id` is internal (deck rows reference it); the API exposes `scryfall_id`.
@@ -27,31 +30,32 @@ class Card(db.Model):
     """
 
     __tablename__ = "cards"
-    id = db.Column(db.Integer, primary_key=True)
-    scryfall_id = db.Column(db.String(36), unique=True, nullable=False)
-    oracle_id = db.Column(db.String(36), index=True)
-    name = db.Column(db.Text, nullable=False)
-    sort_name = db.Column(
-        db.Text().with_variant(db.Text(collation="C"), "postgresql"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scryfall_id: Mapped[str] = mapped_column(String(36), unique=True)
+    oracle_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    name: Mapped[str] = mapped_column(Text)
+    sort_name: Mapped[str] = mapped_column(
+        Text().with_variant(Text(collation="C"), "postgresql"), index=True
     )
-    mana_cost = db.Column(db.Text)
-    cmc = db.Column(db.Float)
-    type_line = db.Column(db.Text)
-    oracle_text = db.Column(db.Text)
-    power = db.Column(db.String(16))
-    toughness = db.Column(db.String(16))
-    loyalty = db.Column(db.String(16))
-    colors = db.Column(db.JSON)
-    color_identity = db.Column(db.JSON)
-    layout = db.Column(db.String(32))
-    card_faces = db.Column(db.JSON)
-    legalities = db.Column(db.JSON)  # Scryfall's {format: legal|not_legal|banned|restricted}
-    image_uri = db.Column(db.Text)
-    scryfall_uri = db.Column(db.Text)
-    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
-    updated_at = db.Column(db.DateTime(timezone=True))
+    mana_cost: Mapped[str | None] = mapped_column(Text)
+    cmc: Mapped[float | None] = mapped_column(Float)
+    type_line: Mapped[str | None] = mapped_column(Text)
+    oracle_text: Mapped[str | None] = mapped_column(Text)
+    power: Mapped[str | None] = mapped_column(String(16))
+    toughness: Mapped[str | None] = mapped_column(String(16))
+    loyalty: Mapped[str | None] = mapped_column(String(16))
+    colors: Mapped[list[str] | None] = mapped_column(JSON)
+    color_identity: Mapped[list[str] | None] = mapped_column(JSON)
+    layout: Mapped[str | None] = mapped_column(String(32))
+    card_faces: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+    # Scryfall's {format: legal|not_legal|banned|restricted}
+    legalities: Mapped[dict[str, str] | None] = mapped_column(JSON)
+    image_uri: Mapped[str | None] = mapped_column(Text)
+    scryfall_uri: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @validates("name")
-    def _set_sort_name(self, _key, name):
+    def _set_sort_name(self, _key: str, name: str) -> str:
         self.sort_name = name_key(name)
         return name

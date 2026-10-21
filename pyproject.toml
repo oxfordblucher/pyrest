@@ -29,6 +29,8 @@ dev = [
     "pytest-cov>=5",
     "responses>=0.25",
     "ruff>=0.6",
+    "mypy>=1.11",
+    "types-requests",
 ]
 
 [tool.setuptools.packages.find]
@@ -52,3 +54,24 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["scryapi"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+# The logic-heavy layers are fully annotated; routes and app wiring stay lenient.
+[[tool.mypy.overrides]]
+module = [
+    "scryapi.formats",
+    "scryapi.models.*",
+    "scryapi.schemas.*",
+    "scryapi.search.*",
+    "scryapi.services.*",
+    "scryapi.sync.*",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

@@ -2,6 +2,7 @@ import logging
 import os
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -26,14 +27,14 @@ class BulkInfo:
     size: int | None
 
 
-def _user_agent():
+def _user_agent() -> str:
     try:
         return f"scryapi/{version('scryapi')}"
     except PackageNotFoundError:
         return "scryapi"
 
 
-def make_session():
+def make_session() -> requests.Session:
     """HTTP session following Scryfall's API guidelines (identifying headers, retries)."""
     session = requests.Session()
     session.headers.update(
@@ -49,7 +50,7 @@ def make_session():
     return session
 
 
-def fetch_bulk_info(session):
+def fetch_bulk_info(session: requests.Session) -> BulkInfo:
     resp = session.get(BULK_INFO_URL, timeout=TIMEOUT)
     resp.raise_for_status()
     data = resp.json()
@@ -63,7 +64,7 @@ def fetch_bulk_info(session):
         raise SyncError(f"Unexpected bulk-data response, missing {e}") from e
 
 
-def download_bulk(session, info, dest_dir):
+def download_bulk(session: requests.Session, info: BulkInfo, dest_dir: Path) -> Path:
     """Download the bulk file to `dest_dir` atomically and return its path.
 
     The file is streamed to a `.part` file, its size checked against Scryfall's

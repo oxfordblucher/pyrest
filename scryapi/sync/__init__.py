@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+import requests
 from flask import current_app
 
 from scryapi.extensions import db
@@ -26,12 +27,16 @@ class SyncResult:
     imported: ImportResult | None = None
 
 
-def data_dir():
+def data_dir() -> Path:
     configured = current_app.config.get("SCRYAPI_DATA_DIR")
     return Path(configured) if configured else Path(current_app.instance_path) / "data"
 
 
-def run_sync(file=None, force=False, session=None):
+def run_sync(
+    file: str | Path | None = None,
+    force: bool = False,
+    session: requests.Session | None = None,
+) -> SyncResult:
     """Download (unless `file` is given) and import Oracle cards. Requires an app context.
 
     On failure the import is rolled back, the error is recorded in `sync_state`, and the
@@ -69,7 +74,7 @@ def run_sync(file=None, force=False, session=None):
     return SyncResult(status="imported", imported=result)
 
 
-def _record_error(error):
+def _record_error(error: BaseException) -> None:
     state = db.session.get(SyncState, STATE_KEY) or SyncState(key=STATE_KEY)
     state.last_error = f"{type(error).__name__}: {error}"[:2000]
     db.session.add(state)

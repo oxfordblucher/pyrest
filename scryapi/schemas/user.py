@@ -1,7 +1,8 @@
 import re
 from dataclasses import dataclass
 
-from scryapi.schemas import Errors, iso
+from scryapi.models import User
+from scryapi.schemas import Errors, Json, iso
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{3,30}$")
 # Deliberately loose: real validation of an address is sending mail to it.
@@ -31,7 +32,7 @@ class Login:
     remember: bool
 
 
-def _string(body, field, errors):
+def _string(body: Json, field: str, errors: Errors) -> str:
     value = body.get(field)
     if value is None:
         errors.add(field, "is required")
@@ -42,7 +43,7 @@ def _string(body, field, errors):
     return value
 
 
-def parse_registration(body):
+def parse_registration(body: Json) -> Registration:
     errors = Errors()
     username = _string(body, "username", errors).strip().lower()
     email = _string(body, "email", errors).strip().lower()
@@ -58,13 +59,13 @@ def parse_registration(body):
     return Registration(username=username, email=email, password=password)
 
 
-def _check_password_length(body, field, errors):
+def _check_password_length(body: Json, field: str, errors: Errors) -> None:
     value = body.get(field)
     if isinstance(value, str) and not MIN_PASSWORD <= len(value) <= MAX_PASSWORD:
         errors.add(field, f"must be {MIN_PASSWORD}-{MAX_PASSWORD} characters")
 
 
-def parse_password_change(body):
+def parse_password_change(body: Json) -> PasswordChange:
     errors = Errors()
     current = _string(body, "current_password", errors)
     new = _string(body, "new_password", errors)
@@ -73,7 +74,7 @@ def parse_password_change(body):
     return PasswordChange(current_password=current[:MAX_PASSWORD], new_password=new)
 
 
-def parse_login(body):
+def parse_login(body: Json) -> Login:
     errors = Errors()
     login = _string(body, "login", errors).strip().lower()
     password = _string(body, "password", errors)
@@ -84,9 +85,9 @@ def parse_login(body):
     return Login(login=login, password=password[:MAX_PASSWORD], remember=remember)
 
 
-def dump_me(user):
+def dump_me(user: User) -> Json:
     return {"username": user.username, "email": user.email, "created_at": iso(user.created_at)}
 
 
-def dump_public_user(user):
+def dump_public_user(user: User) -> Json:
     return {"username": user.username, "created_at": iso(user.created_at)}

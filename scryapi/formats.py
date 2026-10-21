@@ -34,11 +34,17 @@ class Format:
     commander_must_be_legendary: bool = True
 
 
-def _constructed(key, name):
+def _constructed(key: str, name: str) -> Format:
     return Format(key, name, Kind.CONSTRUCTED, deck_size=60, sideboard_size=15, max_copies=4)
 
 
-def _commander(key, name, deck_size=100, types=LEGENDARY_CREATURE, legendary=True):
+def _commander(
+    key: str,
+    name: str,
+    deck_size: int = 100,
+    types: frozenset[str] = LEGENDARY_CREATURE,
+    legendary: bool = True,
+) -> Format:
     return Format(
         key,
         name,

@@ -7,8 +7,10 @@ the deck's format and entries (objects with `card`, `quantity` and `board`).
 
 import re
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
+from typing import Any, Protocol
 
-from scryapi.formats import FORMATS, Kind
+from scryapi.formats import FORMATS, Format, Kind
 
 ANY_NUMBER_RE = re.compile(r"A deck can have any number of cards named")
 UP_TO_RE = re.compile(r"A deck can have up to (\w+) cards named")
@@ -22,31 +24,66 @@ PARTNER_RE = re.compile(
 )
 CAN_BE_COMMANDER = "can be your commander"
 
+type Report = dict[str, Any]
+type Boards = defaultdict[str, list["EntryLike"]]
+
+
+class CardLike(Protocol):
+    """The Card attributes the rules read (scryapi.models.Card satisfies it)."""
+
+    @property
+    def id(self) -> int: ...
+    @property
+    def scryfall_id(self) -> str: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def sort_name(self) -> str: ...
+    @property
+    def type_line(self) -> str | None: ...
+    @property
+    def oracle_text(self) -> str | None: ...
+    @property
+    def color_identity(self) -> list[str] | None: ...
+    @property
+    def legalities(self) -> dict[str, str] | None: ...
+
+
+class EntryLike(Protocol):
+    """A deck entry (scryapi.models.DeckCard satisfies it)."""
+
+    @property
+    def card(self) -> CardLike: ...
+    @property
+    def quantity(self) -> int: ...
+    @property
+    def board(self) -> str: ...
+
 
 # --- card facts ----------------------------------------------------------------------
 
 
-def _front_type_line(card):
+def _front_type_line(card: CardLike) -> str:
     return (card.type_line or "").split(" // ")[0]
 
 
-def _supertypes(card):
+def _supertypes(card: CardLike) -> set[str]:
     return set(_front_type_line(card).split("—")[0].split())
 
 
-def _type_words(card):
+def _type_words(card: CardLike) -> set[str]:
     return set(_front_type_line(card).replace("—", " ").split())
 
 
-def _text(card):
+def _text(card: CardLike) -> str:
     return card.oracle_text or ""
 
 
-def is_basic(card):
+def is_basic(card: CardLike) -> bool:
     return "Basic" in _supertypes(card)
 
 
-def copy_limit(card, default):
+def copy_limit(card: CardLike, default: int | None) -> int | None:
     """How many copies a deck may hold: None means unlimited."""
     if is_basic(card) or ANY_NUMBER_RE.search(_text(card)):
         return None
@@ -55,8 +92,8 @@ def copy_limit(card, default):
     return default
 
 
-def _partner_tags(card):
-    tags = set()
+def _partner_tags(card: CardLike) -> set[tuple[str, ...]]:
+    tags: set[tuple[str, ...]] = set()
     for match in PARTNER_RE.finditer(_text(card)):
         if match.group("group"):
             tags.add(("group", match.group("group").strip()))
@@ -67,7 +104,7 @@ def _partner_tags(card):
     return tags
 
 
-def _pairs_with(a, b):
+def _pairs_with(a: CardLike, b: CardLike) -> bool:
     """True if `a` and `b` may lead a deck together."""
     ta, tb = _partner_tags(a), _partner_tags(b)
     if ("plain",) in ta and ("plain",) in tb:
@@ -84,7 +121,7 @@ def _pairs_with(a, b):
     return False
 
 
-def _can_lead(card, fmt):
+def _can_lead(card: CardLike, fmt: Format) -> bool:
     if CAN_BE_COMMANDER in _text(card):
         return True
     if fmt.commander_must_be_legendary and "Legendary" not in _supertypes(card):
@@ -95,23 +132,23 @@ def _can_lead(card, fmt):
 # --- report ----------------------------------------------------------------------------
 
 
-def _card_ref(card):
+def _card_ref(card: CardLike) -> dict[str, str]:
     return {"id": card.scryfall_id, "name": card.name}
 
 
 class _Report:
-    def __init__(self, fmt):
+    def __init__(self, fmt: Format) -> None:
         self.fmt = fmt
-        self.problems = []
+        self.problems: list[dict[str, Any]] = []
 
-    def add(self, code, message, card=None):
-        problem = {"code": code, "message": message}
+    def add(self, code: str, message: str, card: CardLike | None = None) -> None:
+        problem: dict[str, Any] = {"code": code, "message": message}
         if card is not None:
             problem["card"] = _card_ref(card)
         self.problems.append(problem)
 
 
-def check_deck(format_key, entries):
+def check_deck(format_key: str | None, entries: Sequence[EntryLike]) -> Report | None:
     """Return `{format, legal, problems}` for a deck, or None if it has no format."""
     if format_key is None:
         return None
@@ -121,7 +158,7 @@ def check_deck(format_key, entries):
         return {"format": format_key, "legal": False, "problems": [problem]}
 
     report = _Report(fmt)
-    boards = defaultdict(list)
+    boards: Boards = defaultdict(list)
     for entry in entries:
         boards[entry.board].append(entry)
     count = {board: sum(e.quantity for e in items) for board, items in boards.items()}
@@ -136,11 +173,12 @@ def check_deck(format_key, entries):
     return {"format": fmt.key, "legal": not report.problems, "problems": report.problems}
 
 
-def _check_structure(report, boards, count):
+def _check_structure(report: _Report, boards: Boards, count: dict[str, int]) -> None:
     fmt = report.fmt
     main, side, commanders = (count.get(b, 0) for b in ("main", "side", "commander"))
     if fmt.kind is Kind.CARD_POOL:
         return
+    assert fmt.deck_size is not None  # every other kind has a size rule
     if fmt.kind is Kind.CONSTRUCTED:
         if main < fmt.deck_size:
             report.add(
@@ -166,9 +204,9 @@ def _check_structure(report, boards, count):
         report.add("commander_not_allowed", f"{fmt.name} decks don't have a commander")
 
 
-def _check_cards(report, entries):
+def _check_cards(report: _Report, entries: Sequence[EntryLike]) -> None:
     fmt = report.fmt
-    totals = {}
+    totals: dict[int, tuple[CardLike, int]] = {}
     for entry in entries:
         card, quantity = entry.card, entry.quantity
         totals[card.id] = (card, totals.get(card.id, (card, 0))[1] + quantity)
@@ -192,7 +230,9 @@ def _check_cards(report, entries):
             )
 
 
-def _check_color_identity(report, leaders, cards):
+def _check_color_identity(
+    report: _Report, leaders: Iterable[CardLike], cards: Iterable[CardLike]
+) -> None:
     allowed = {color for leader in leaders for color in leader.color_identity or []}
     for card in sorted(cards, key=lambda c: c.sort_name):
         if not set(card.color_identity or []) <= allowed:
@@ -203,7 +243,7 @@ def _check_color_identity(report, leaders, cards):
             )
 
 
-def _check_commanders(report, boards):
+def _check_commanders(report: _Report, boards: Boards) -> None:
     fmt = report.fmt
     commanders = [e.card for e in boards["commander"]]
     if not commanders:
@@ -227,7 +267,7 @@ def _check_commanders(report, boards):
     _check_color_identity(report, commanders, [e.card for e in boards["main"]])
 
 
-def _check_oathbreaker(report, boards):
+def _check_oathbreaker(report: _Report, boards: Boards) -> None:
     leaders = [e.card for e in boards["commander"]]
     walkers = [c for c in leaders if "Planeswalker" in _type_words(c)]
     spells = [c for c in leaders if {"Instant", "Sorcery"} & _type_words(c)]

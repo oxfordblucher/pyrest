@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from scryapi.schemas import Errors, parse_pagination, parse_text
+from scryapi.models import Card
+from scryapi.schemas import Args, Errors, Json, parse_pagination, parse_text
 
 
 @dataclass(frozen=True)
@@ -12,7 +13,7 @@ class CardQuery:
     text: str | None = None
 
 
-def parse_card_query(args):
+def parse_card_query(args: Args) -> CardQuery:
     errors = Errors()
     page, limit = parse_pagination(args, errors)
     query = CardQuery(
@@ -26,7 +27,7 @@ def parse_card_query(args):
     return query
 
 
-def dump_card(card):
+def dump_card(card: Card) -> Json:
     return {
         "id": card.scryfall_id,
         "name": card.name,
@@ -46,7 +47,7 @@ def dump_card(card):
     }
 
 
-def dump_card_summary(card):
+def dump_card_summary(card: Card) -> Json:
     return {
         "id": card.scryfall_id,
         "name": card.name,

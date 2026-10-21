@@ -20,10 +20,10 @@ WEEK_SECONDS = 7 * 24 * 60 * 60
 )
 @click.option("--force", is_flag=True, help="Import even if Scryfall's data is unchanged.")
 @with_appcontext
-def sync_cards_command(file, force):
+def sync_cards_command(file: str | None, force: bool) -> None:
     """Download Scryfall Oracle bulk data and upsert it into the catalogue."""
     result = run_sync(file=file, force=force)
-    if result.status == "up_to_date":
+    if result.imported is None:
         click.echo("Card data is already up to date.")
     else:
         click.echo(
@@ -39,7 +39,7 @@ def sync_cards_command(file, force):
     help="Seconds between sync attempts.",
 )
 @with_appcontext
-def run_scheduler_command(interval):
+def run_scheduler_command(interval: int) -> None:
     """Run the card sync now and then every INTERVAL seconds, in this one process.
 
     Prefer an external cron calling `flask sync-cards` in production (docs/TDD.md §7).
@@ -47,4 +47,4 @@ def run_scheduler_command(interval):
     from scryapi.sync.scheduler import run_forever
 
     logging.basicConfig(level=logging.INFO)
-    run_forever(current_app._get_current_object(), interval)
+    run_forever(current_app._get_current_object(), interval)  # type: ignore[attr-defined]

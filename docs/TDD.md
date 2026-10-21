@@ -428,7 +428,8 @@ the next `flask sync-cards --force`; until then their per-card status isn't chec
 | **M1 Card catalogue** | C5, C4, S4, S5, E4, C7, C8, E1, E2, E3, E5, E6, C6+Q2, S6, S7 pt1, Q4 | `flask db upgrade && flask sync-cards --file tests/fixtures/cards_sample.json` works on SQLite **and** Postgres. Card API matches §9. Fuzzed search never returns 500. |
 | **M2 Accounts** | S1, S2, C1 (users) | Auth endpoints as in §9 with CSRF. The serialiser allow-list is tested. |
 | **M3 Decks & sharing** | C9, C1 (decks), C2, C3 | Deck endpoints as in §9 with the full authorisation matrix tested. |
-| **M4 Hardening** | S7 pt2, Q7 pt2, Q8 pt2, Q5 | Rate limits, CI matrix green, coverage ≥ 85%, human review, first deploy. |
+| **M4 Hardening** | S7 pt2, Q7 pt2, Q5 | Rate limits, CI matrix green, coverage ≥ 85%, human review, first deploy. |
+| **M5 Owner decisions** | D1, A1, F1, L1, L2, Q8 pt2 | Identical ordering on both dialects, change-password, configurable CORS, deck legality, mypy clean in CI. |
 
 ## 13. Alternatives considered
 
@@ -449,8 +450,8 @@ the next `flask sync-cards --force`; until then their per-card status isn't chec
 
 - Each PR addresses the AUDIT IDs it names and ticks their boxes. It doesn't refactor
   outside its scope.
-- Every behaviour change ships with tests. `ruff check`, `ruff format --check` and
-  `pytest` must pass.
+- Every behaviour change ships with tests. `ruff check`, `ruff format --check`, `mypy`
+  and `pytest` must pass, and `scripts/smoke.py` against a running server.
 - No new dependency without updating `pyproject.toml` and noting why in the PR.
 - Schema changes go through `flask db migrate -m "<message>"`, and the agent reviews the
   generated file. Autogenerate must never emit operations on `cards_fts*`.

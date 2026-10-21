@@ -1,6 +1,10 @@
 """Map Scryfall card objects to `cards` table rows."""
 
+from typing import Any
+
 from scryapi.models.card import name_key
+
+type RawCard = dict[str, Any]  # one Scryfall card object
 
 # Not real cards: Scryfall's own search hides these by default.
 SKIPPED_LAYOUTS = frozenset({"art_series"})
@@ -8,24 +12,24 @@ SKIPPED_LAYOUTS = frozenset({"art_series"})
 FACE_FIELDS = ("name", "mana_cost", "type_line", "oracle_text", "power", "toughness", "loyalty")
 
 
-def _image_uri(obj):
+def _image_uri(obj: RawCard) -> str | None:
     return (obj.get("image_uris") or {}).get("normal")
 
 
-def _first_face_value(faces, key):
+def _first_face_value(faces: list[RawCard], key: str) -> Any:
     return next((f[key] for f in faces if f.get(key)), None)
 
 
-def _join_faces(faces, key, sep):
+def _join_faces(faces: list[RawCard], key: str, sep: str) -> str | None:
     values = [f[key] for f in faces if f.get(key)]
     return sep.join(values) if values else None
 
 
-def should_import(raw):
+def should_import(raw: RawCard) -> bool:
     return raw.get("object") == "card" and raw.get("layout") not in SKIPPED_LAYOUTS
 
 
-def normalise_card(raw):
+def normalise_card(raw: RawCard) -> dict[str, Any]:
     """Flatten one Scryfall card object into a row dict.
 
     Multi-face cards (transform, modal DFC, split, adventure, ...) keep some fields only
@@ -35,7 +39,7 @@ def normalise_card(raw):
     """
     faces = raw.get("card_faces") or []
 
-    def text_field(key, sep):
+    def text_field(key: str, sep: str) -> str | None:
         return raw.get(key) or _join_faces(faces, key, sep)
 
     return {
@@ -63,6 +67,6 @@ def normalise_card(raw):
     }
 
 
-def _face_colors(faces):
+def _face_colors(faces: list[RawCard]) -> list[str] | None:
     colors = {c for f in faces for c in f.get("colors") or []}
     return sorted(colors) if faces else None

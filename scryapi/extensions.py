@@ -1,4 +1,5 @@
 import sqlite3
+from typing import TYPE_CHECKING
 
 from flask import request
 from flask_limiter import Limiter
@@ -17,6 +18,12 @@ class Base(DeclarativeBase):
 
 
 db = SQLAlchemy(model_class=Base)
+
+# db.Model is built at runtime, so type checkers can't see it; models subclass this alias.
+if TYPE_CHECKING:
+    Model = Base
+else:
+    Model = db.Model
 migrate = Migrate()
 login_manager = LoginManager()
 csrf = CSRFProtect()

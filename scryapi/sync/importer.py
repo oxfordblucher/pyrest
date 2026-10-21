@@ -1,23 +1,27 @@
 import gzip
 import json
 import logging
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import batched
+from pathlib import Path
+from typing import Any
 
 from sqlalchemy.dialects import postgresql, sqlite
 
 from scryapi.extensions import db
 from scryapi.models import Card
 from scryapi.search import get_backend
-from scryapi.sync.normalise import normalise_card, should_import
+from scryapi.sync.normalise import RawCard, normalise_card, should_import
 
 logger = logging.getLogger(__name__)
 
 # 500 rows x ~17 columns stays well under SQLite's and Postgres's bound-parameter limits.
 BATCH_SIZE = 500
 
-_INSERTS = {"sqlite": sqlite.insert, "postgresql": postgresql.insert}
+# Dialect inserts with ON CONFLICT support; the generic sqlalchemy.insert has none.
+_INSERTS: dict[str, Callable[..., Any]] = {"sqlite": sqlite.insert, "postgresql": postgresql.insert}
 
 
 @dataclass(frozen=True)
@@ -26,7 +30,7 @@ class ImportResult:
     skipped: int
 
 
-def iter_cards(path):
+def iter_cards(path: str | Path) -> Iterator[RawCard]:
     """Stream card objects from a `.jsonl` / `.jsonl.gz` file, or a small `.json` array."""
     path = str(path)
     if path.endswith(".json"):
@@ -40,7 +44,7 @@ def iter_cards(path):
                 yield json.loads(line)
 
 
-def upsert_cards(rows):
+def upsert_cards(rows: list[dict[str, Any]]) -> None:
     insert = _INSERTS[db.engine.dialect.name]
     stmt = insert(Card).values(rows)
     updatable = {c: stmt.excluded[c] for c in rows[0] if c != "scryfall_id"}
@@ -48,7 +52,7 @@ def upsert_cards(rows):
     db.session.execute(stmt)
 
 
-def import_cards(raw_cards):
+def import_cards(raw_cards: Iterable[RawCard]) -> ImportResult:
     """Upsert cards and soft-delete any not present in `raw_cards`.
 
     Runs inside the caller's transaction and does not commit; on error the caller rolls

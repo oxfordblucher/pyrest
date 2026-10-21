@@ -109,9 +109,10 @@ Auth uses session cookies. All errors are JSON:
 pytest                                # SQLite, no network access; HTTP calls must be mocked
 TEST_DATABASE_URL=postgresql+psycopg://user@localhost/scryapi_test pytest   # Postgres
 ruff check . && ruff format --check . # lint and format
+mypy                                  # type check (config in pyproject.toml)
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint, plus tests on Python 3.12/3.14 × SQLite/Postgres
+CI (`.github/workflows/ci.yml`) runs lint and mypy, plus tests on Python 3.12/3.14 × SQLite/Postgres
 with an 85% coverage floor.
 
 Tests marked `xfail(strict=True)` describe target behaviour from the audit. When you

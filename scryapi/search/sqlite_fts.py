@@ -1,3 +1,7 @@
+from typing import Any
+
+from sqlalchemy import Select
+
 from scryapi.extensions import db
 from scryapi.models import Card
 
@@ -5,7 +9,7 @@ from scryapi.models import Card
 # the baseline migration.
 
 
-def build_fts_query(text):
+def build_fts_query(text: str) -> str:
     """Turn arbitrary user input into a valid FTS5 query.
 
     Each whitespace-separated term becomes a quoted string (internal quotes doubled), so
@@ -16,7 +20,7 @@ def build_fts_query(text):
 
 
 class SqliteFtsBackend:
-    def apply_text_filter(self, stmt, text):
+    def apply_text_filter(self, stmt: Select[Any], text: str) -> Select[Any]:
         query = build_fts_query(text)
         if not query:
             return stmt
@@ -27,7 +31,7 @@ class SqliteFtsBackend:
         )
         return stmt.where(Card.id.in_(matching_ids))
 
-    def rebuild(self):
+    def rebuild(self) -> None:
         # cards_fts is an external-content table with no triggers: the sync importer is
         # the only writer to `cards`, so it rebuilds the index once per import.
         db.session.execute(db.text("INSERT INTO cards_fts(cards_fts) VALUES('rebuild')"))

@@ -3,20 +3,21 @@ import logging
 from datetime import datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from flask import Flask
 
 from scryapi.sync import run_sync
 
 logger = logging.getLogger(__name__)
 
 
-def sync_job(app):
+def sync_job(app: Flask) -> None:
     """Scheduler entry point: runs outside any request, so it pushes its own app context."""
     # Failures are already logged and recorded in sync_state; keep the scheduler alive.
     with app.app_context(), contextlib.suppress(Exception):
         run_sync()
 
 
-def run_forever(app, interval_seconds):
+def run_forever(app: Flask, interval_seconds: int) -> None:
     scheduler = BlockingScheduler()
     scheduler.add_job(
         sync_job,

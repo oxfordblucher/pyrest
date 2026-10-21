@@ -1,12 +1,17 @@
+from collections.abc import Iterable
+
+from sqlalchemy import Case
+
 from scryapi.errors import ApiError
 from scryapi.extensions import db
 from scryapi.models import Card
 from scryapi.models.card import name_key
+from scryapi.schemas.card import CardQuery
 from scryapi.search import get_backend
 from scryapi.services import contains, paginate, starts_with
 
 
-def search_cards(query):
+def search_cards(query: CardQuery) -> tuple[list[Card], int]:
     """Return (cards, total) for a CardQuery. Only active cards are listed."""
     stmt = db.select(Card).where(Card.is_active)
     if query.name:
@@ -20,7 +25,7 @@ def search_cards(query):
     return paginate(stmt, query.page, query.limit)
 
 
-def name_rank(key):
+def name_rank(key: str) -> Case[int]:
     """Exact name matches first, then names starting with the term, then the rest."""
     return db.case(
         (Card.sort_name == key, 0),
@@ -29,7 +34,7 @@ def name_rank(key):
     )
 
 
-def get_card(scryfall_id):
+def get_card(scryfall_id: str) -> Card:
     """Fetch by public id. Inactive cards are still returned: decks may reference them."""
     card = db.session.execute(
         db.select(Card).where(Card.scryfall_id == scryfall_id)
@@ -39,7 +44,7 @@ def get_card(scryfall_id):
     return card
 
 
-def get_cards_by_scryfall_ids(scryfall_ids):
+def get_cards_by_scryfall_ids(scryfall_ids: Iterable[str]) -> dict[str, Card]:
     if not scryfall_ids:
         return {}
     cards = db.session.execute(db.select(Card).where(Card.scryfall_id.in_(scryfall_ids))).scalars()

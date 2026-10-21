@@ -4,13 +4,14 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from scryapi.errors import ApiError, ConflictError, ValidationError
 from scryapi.extensions import db
 from scryapi.models import User
+from scryapi.schemas.user import Login, PasswordChange, Registration
 
 # Checked against when the login doesn't match any user, so a miss costs the same as a
 # wrong password and response timing doesn't reveal which accounts exist.
 _DUMMY_HASH = generate_password_hash("timing-equaliser-not-a-real-password")
 
 
-def register(registration):
+def register(registration: Registration) -> User:
     taken = db.session.execute(
         db.select(User.username, User.email).where(
             (User.username == registration.username) | (User.email == registration.email)
@@ -38,7 +39,7 @@ def register(registration):
     return user
 
 
-def authenticate(login):
+def authenticate(login: Login) -> User | None:
     """Return the user for valid credentials, else None. `login` is username or email."""
     field = User.email if "@" in login.login else User.username
     user = db.session.execute(db.select(User).where(field == login.login)).scalar_one_or_none()
@@ -48,7 +49,7 @@ def authenticate(login):
     return user if check_password_hash(user.password_hash, login.password) else None
 
 
-def change_password(user, change):
+def change_password(user: User, change: PasswordChange) -> User:
     """Set a new password and bump the session version, signing out other sessions."""
     if not check_password_hash(user.password_hash, change.current_password):
         raise ValidationError([{"field": "current_password", "message": "is incorrect"}])
@@ -58,7 +59,7 @@ def change_password(user, change):
     return user
 
 
-def get_by_username(username):
+def get_by_username(username: str) -> User:
     user = db.session.execute(
         db.select(User).where(User.username == username.lower())
     ).scalar_one_or_none()

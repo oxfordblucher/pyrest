@@ -75,7 +75,7 @@ class ProdConfig(BaseConfig):
         missing = [k for k in ("SECRET_KEY", "SQLALCHEMY_DATABASE_URI") if not getattr(cls, k)]
         if missing:
             raise RuntimeError(f"Missing required production config: {', '.join(missing)}")
-        if len(cls.SECRET_KEY) < 32:
+        if len(cls.SECRET_KEY or "") < 32:
             raise RuntimeError("SECRET_KEY must be at least 32 characters in production")
 
 

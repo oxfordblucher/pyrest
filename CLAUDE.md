@@ -3,9 +3,8 @@
 A Flask JSON API that mirrors Scryfall Oracle card data for search, with users and decks.
 
 ## Status
-M0–M4 of `docs/AUDIT.md` are done. What's left is listed under "Hand-off" at the end of
-that file. Those items need an owner's decision (hosting, frontend origin, password
-policy), so don't guess them.
+M0–M5 of `docs/AUDIT.md` are done. What's left is listed under "Hand-off" at the end of
+that file: hosting (deferred by the owner) and pushing the branch. Don't guess either.
 
 ## Read first
 - `docs/PRD.md`: what we're building and why.
@@ -20,6 +19,8 @@ policy), so don't guess them.
 - Postgres: `TEST_DATABASE_URL=postgresql+psycopg://user@host/db pytest`. CI runs both.
   Anything dialect-specific must pass on both.
 - Lint and format: `ruff check . && ruff format .`
+- Types: `mypy`. `services`, `schemas`, `search`, `sync`, `models` and `formats` must be
+  fully annotated; routes and app wiring are checked but may stay unannotated.
 - Schema: `flask --app scryapi db upgrade`. For a new revision, run
   `flask --app scryapi db migrate -m "<message>"`, then review the file. Search objects
   (`cards_fts*`, `search_vector`, trigram indexes) are hand-written and dialect-conditional.
